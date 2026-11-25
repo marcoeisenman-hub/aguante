@@ -197,10 +197,10 @@ $('#goRace').addEventListener('click', () => {
 let preview = null, editorOpen = false;
 const HEIGHTS = [[0.95, 'Bajo'], [1, 'Normal'], [1.05, 'Alto']];
 const SKIN_SW = ['#e9c4a6', '#d8a684', '#b07a58', '#81553c', '#5a3a29'];
-function edSex() { return S.edSex || (S.cat === 'W' ? 'F' : 'M'); }
+function edSex() { return S.cat === 'X' ? (S.edSex || 'M') : S.cat === 'W' ? 'F' : 'M'; }
 function renderEditor() {
   const sx = edSex();
-  for (const b of $$('#eSex button')) { b.classList.toggle('on', b.dataset.v === sx); b.onclick = () => { S.edSex = b.dataset.v; if (S.format === 'singles') S.cat = b.dataset.v === 'F' ? 'W' : 'M'; renderEditor(); }; }
+  for (const b of $$('#eSex button')) { b.classList.toggle('on', b.dataset.v === sx); b.onclick = () => { S.edSex = b.dataset.v; if (S.format === 'singles' || S.cat !== 'X') S.cat = b.dataset.v === 'F' ? 'W' : 'M'; if (!validDivision(S.format, S.cat, S.level)) S.level = 'open'; renderEditor(); }; }
   $('#eKits').innerHTML = KIT_COLORS.map((c, i) => `<button style="background:${c}" data-i="${i}" class="${i === S.kit ? 'on' : ''}"></button>`).join('');
   for (const b of $$('#eKits button')) b.onclick = () => { S.kit = +b.dataset.i; renderEditor(); };
   $('#eSkin').innerHTML = SKIN_SW.map((c, i) => `<button style="background:${c}" data-i="${i}" class="${i === (S.skin | 0) ? 'on' : ''}"></button>`).join('');
@@ -282,7 +282,8 @@ function tapHit() {
     const q = tap.hits.reduce((a, b) => a + b, 0) / tap.t.reps;
     const P = loadProfile(); const up = train(P, tap.t, q);
     $('#tapTip').innerHTML = `Calidad <b>${Math.round(q * 100)}%</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
-    setTimeout(() => { $('#tapBox').hidden = true; tap = null; renderTrain(); }, 1800);
+    const cur = tap;
+    setTimeout(() => { if (tap === cur) { $('#tapBox').hidden = true; tap = null; } renderTrain(); }, 1800);
   }
 }
 $('#tapBox').addEventListener('pointerdown', e => { if (e.target.id !== 'tapClose') { e.preventDefault(); tapHit(); } });
@@ -295,7 +296,7 @@ const hostCfg = () => ({ format: S.format, cat: S.cat, level: S.level, heat: S.h
 function divLabel(c) { return division(c.format, c.cat, c.level).name; }
 function openRoom(code) {
   room?.leave();
-  room = new Room(code, { name: S.name || 'Atleta', kit: S.kit, country: S.country, host: false });
+  room = new Room(code, { name: S.name || 'Atleta', kit: S.kit, country: S.country, skin: S.skin | 0, height: S.height || 1, host: false });
   roomCfg = null;
   $('#oOff').hidden = true; $('#oOn').hidden = false;
   $('#oCodeShow').textContent = room.code;
@@ -334,7 +335,7 @@ $('#oEdit').onclick = () => show('setup');
 $('#oGo').onclick = () => {
   if (!room?.isHost) return;
   const L = room.list().slice(0, 8);
-  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3) })) };
+  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3), skin: Math.abs(p.skin | 0) % 5, height: Math.min(1.05, Math.max(0.95, +p.height || 1)) })) };
   room.send(m); launchOnline(m);
 };
 function launchOnline(m) {
@@ -414,7 +415,7 @@ function startRace(practice = null, on = null, tr = null) {
 function pauseGame() { if (state !== 'race') return; state = 'paused'; show('pause'); if (!onlineRace) Audio.music(1); pad1.clear(); pad2.clear(); }
 function resume() { state = 'race'; show(null); Audio.music(2); pad1.clear(); }
 $('#pResume').onclick = resume;
-$('#pRestart').onclick = () => { if (onlineRace) { quitToMenu(); show('online'); renderLobby(); return; } startRace(lastSetup); };
+$('#pRestart').onclick = () => { if (onlineRace) { quitToMenu(); show('online'); renderLobby(); return; } startRace(lastSetup, null, training); };
 $('#pQuit').onclick = quitToMenu;
 $('#hPause').onclick = pauseGame;
 $('#rMenu').onclick = quitToMenu;

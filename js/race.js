@@ -446,7 +446,7 @@ export class Race {
     me.nearIn = passNo + 1 >= 1 && (sIn + Math.max(0, passNo) * TRACK.P - me.sRun) < 30 && (sIn + Math.max(0, passNo) * TRACK.P - me.sRun) > 0;
     me.finalLap = Math.max(0, passNo) + 1 >= LAPS_PER_KM;
     if (passNo > prevPass && passNo >= 1) {
-      const inside = me.lat < -1.3;
+      const inside = me.laneR != null ? me.laneR === 0 : me.lat < -1.3;   // lo que elegiste es lo que cuenta (igual que el HUD)
       if (inside) {
         if (mate && me.gapSec > 0.5) { me.waitMate = me.gapSec; }
         const missing = LAPS_PER_KM - passNo;
