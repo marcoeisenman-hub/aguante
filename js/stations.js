@@ -380,8 +380,8 @@ class Farmers extends Station {
       const tv = walk ? this.vt * this.ef * lerp(0.75, 1, this.grip) : 0;     // con poco agarre caminas más lento
       this.v += (tv - this.v) * (1 - Math.exp(-dt * 5));
       if (walk) this.spend(0.5 * this.kw * dt / this.lf);
-      this.grip -= dt * this.kw * (0.03 + 0.05 * this.v / this.vt) / this.lf * (1.3 - this.ef * 0.3) / (this.me.prof?.grip || 1);
-      if (this.grip <= 0) { this.grip = 0; this.down = true; this.autoDrop = true; this.v = 0; this.race.flash('¡Se te soltaron!', 'bad'); this.race.sfx('kbDrop'); }
+      if (!this.down) this.grip -= dt * this.kw * (0.03 + 0.05 * this.v / this.vt) / this.lf * (1.3 - this.ef * 0.3) / (this.me.prof?.grip || 1);
+      if (this.grip <= 0 && !this.down) { this.grip = 0; this.down = true; this.autoDrop = true; this.v = 0; this.race.flash('¡Se te soltaron!', 'bad'); this.race.sfx('kbDrop'); }
       const before = this.x;
       const dx = this.v * dt; this.x = Math.min(this.total, this.x + dx); this.add(this.x - before);
       if (Math.floor(this.x / 20) > Math.floor(before / 20) && !this.finished) this.good(Math.floor(this.x / 20) * 20 + ' m');
