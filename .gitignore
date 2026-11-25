@@ -1,0 +1,5 @@
+node_modules/
+probe/
+.vercel/
+.DS_Store
+*.log

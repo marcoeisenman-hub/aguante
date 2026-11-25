@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>AGUANTE — Fitness Racing 3D</title>
+<meta name="description" content="Carrera de fitness en 3D: 8 km y 8 estaciones con las reglas y pesos oficiales de cada división (Singles, Doubles, Relay; Open, Pro, Elite 15).">
+<link rel="icon" href="favicon.svg">
+<meta name="theme-color" content="#0b0c0e">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,400;0,500;0,600;0,700;0,800;1,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- Carga -->
+<div id="loading" class="screen show">
+  <div class="logo big"><span class="mark"></span>AGUANTE</div>
+  <div class="bar"><i id="loadbar"></i></div>
+  <p id="loadtxt">Montando el pabellón…</p>
+</div>
+
+<!-- Inicio -->
+<div id="home" class="screen">
+  <div class="homewrap">
+    <div class="logo big"><span class="mark"></span>AGUANTE</div>
+    <p class="tag">Fitness racing · 8 × 1 km · 8 estaciones · reglas y pesos oficiales</p>
+    <div class="menu">
+      <button class="btn primary" data-go="setup">Correr una carrera</button>
+      <button class="btn" data-go="online">Online con amigos</button>
+      <button class="btn" data-go="practice">Practicar una estación</button>
+      <button class="btn" data-go="howto">Cómo se juega</button>
+      <button class="btn" data-go="records">Mis tiempos</button>
+    </div>
+    <div class="opts">
+      <label><input type="checkbox" id="optSound" checked> Sonido</label>
+      <label><input type="checkbox" id="optVoice" checked> Locutor</label>
+      <label>Calidad <select id="optQ"><option value="2">Alta</option><option value="1">Media</option><option value="0">Baja</option></select></label>
+      <label>Duración <select id="optK"><option value="5">Normal (~15 min)</option><option value="8">Corta (~9 min)</option></select></label>
+    </div>
+    <p class="fine">Juego de fans inspirado en el formato de las carreras de fitness tipo HYROX. No es un producto oficial.</p>
+  </div>
+</div>
+
+<!-- Configurar carrera -->
+<div id="setup" class="screen">
+  <div class="panel wide">
+    <div class="phead"><button class="back" data-go="home">←</button><h2>Inscripción</h2></div>
+    <div class="cols">
+      <div>
+        <h4>Formato</h4>
+        <div class="seg" id="fFormat"><button data-v="singles" class="on">Singles</button><button data-v="doubles">Doubles</button><button data-v="relay">Relay</button></div>
+        <h4>Categoría</h4>
+        <div class="seg" id="fCat"><button data-v="M" class="on">Men</button><button data-v="W">Women</button><button data-v="X">Mixed</button></div>
+        <h4>División</h4>
+        <div class="seg" id="fLevel"><button data-v="open" class="on">Open</button><button data-v="pro">Pro</button><button data-v="elite">Elite 15</button></div>
+        <p class="note" id="fNote"></p>
+        <h4>Rivales del heat</h4>
+        <div class="seg" id="fHeat"><button data-v="amateur">Amateur</button><button data-v="comp" class="on">Competitivo</button><button data-v="elite">Élite</button></div>
+        <div id="fPartnerBox" hidden>
+          <h4>Pareja</h4>
+          <div class="seg" id="fPartner"><button data-v="ai" class="on">Compañero IA</button><button data-v="papa">Papá (bot)</button><button data-v="p2">Jugador 2</button></div>
+          <p class="note" id="fPartnerNote"></p>
+        </div>
+      </div>
+      <div>
+        <h4 id="divName">Men Open</h4>
+        <table class="loads" id="loads"></table>
+        <p class="rec" id="divRec"></p>
+        <h4>Atleta</h4>
+        <div class="row"><input id="pName" maxlength="16" placeholder="Tu nombre"><select id="pCountry"></select><input id="pAge" type="number" min="16" max="89" value="16" title="Edad (mínimo 16 en la competencia)"></div>
+        <h4>Camiseta</h4>
+        <div class="kits" id="kits"></div>
+        <label class="chk"><input type="checkbox" id="pGhost" checked> Correr contra el fantasma de papá (Tampa 2026 · 1:33:20)</label>
+      </div>
+    </div>
+    <div class="pfoot"><button class="btn primary" id="goRace">A la línea de salida</button></div>
+  </div>
+</div>
+
+<!-- Online -->
+<div id="online" class="screen">
+  <div class="panel">
+    <div class="phead"><button class="back" id="oBack">←</button><h2>Online con amigos</h2></div>
+    <div id="oOff">
+      <p class="note">Crea una sala y manda el link. Corren el mismo heat al mismo tiempo, cada uno en su compu o celular; se ven en la pista y en la tabla.</p>
+      <div class="menu"><button class="btn primary" id="oNew">Crear sala</button></div>
+      <h4>O entra con un código</h4>
+      <div class="row"><input id="oCode" maxlength="5" placeholder="CÓDIGO" style="text-transform:uppercase;letter-spacing:.2em"><button class="btn" id="oJoin">Entrar</button></div>
+    </div>
+    <div id="oOn" hidden>
+      <div class="ocode"><span>SALA</span><b id="oCodeShow"></b></div>
+      <div class="row"><input id="oUrl" readonly><button class="btn" id="oCopy">Copiar link</button></div>
+      <p class="note" id="oStatus">Conectando…</p>
+      <h4>En la sala</h4>
+      <div id="oPlayers" class="oplayers"></div>
+      <h4>Carrera</h4>
+      <p class="note"><b id="oDiv"></b> · <span id="oDur"></span></p>
+      <div class="menu">
+        <button class="btn" id="oEdit">Cambiar división y atleta</button>
+        <button class="btn primary" id="oGo">¡A la salida!</button>
+      </div>
+      <p class="note" id="oHint"></p>
+    </div>
+  </div>
+</div>
+
+<!-- Practicar -->
+<div id="practice" class="screen">
+  <div class="panel">
+    <div class="phead"><button class="back" data-go="home">←</button><h2>Practicar</h2></div>
+    <p class="note">Una estación sola, con los pesos de la división que tengas elegida en la inscripción.</p>
+    <div class="grid8" id="pList"></div>
+  </div>
+</div>
+
+<!-- Cómo se juega -->
+<div id="howto" class="screen">
+  <div class="panel wide scroll">
+    <div class="phead"><button class="back" data-go="home">←</button><h2>Cómo se juega</h2></div>
+    <div class="how">
+      <div><h4>Correr (8 × 1 km)</h4><p><b>↑ ↓</b> cambian el ritmo (Suave → Sprint). <b>← →</b> para moverte de carril. Cada km son <b>2 vueltas</b>. Para entrar a la Roxzone pégate a la izquierda (lado interior) en la entrada <b>ROXZONE IN</b> en la última vuelta. Si entras antes te falta una vuelta: <b>+7 min</b>. Si te pasas, das otra vuelta.</p><p>La energía es todo: Fuerte y Sprint la gastan rápido, Suave y Cómodo la recuperan. Con poca energía todo sale más lento. Después de los trineos y las zancadas las piernas pesan.</p></div>
+      <div><h4>Roxzone</h4><p>Se recorre sola. Mantén <b>↑</b> para ir más rápido (gasta energía). Cuenta en tu tiempo como en la carrera de verdad.</p></div>
+      <div><h4>SkiErg · Row</h4><p>Mantén <b>ESPACIO</b> para el jalón y suelta cuando la aguja está en la franja verde. Deja que vuelvan las manos o el asiento antes del siguiente.</p></div>
+      <div><h4>Sled Push · Sled Pull</h4><p>Alterna <b>← →</b> rápido y parejo. Si repites la misma tecla pierdes fuerza; si se para el trineo, cuesta arrancarlo. 4 carriles de 12,5 m.</p></div>
+      <div><h4>Burpee Broad Jump</h4><p><b>↓</b> pecho al piso, <b>↑</b> arriba, <b>ESPACIO</b> carga y suelta en verde. Si te pasas de fuerza caes con los pies desparejos: no-rep.</p></div>
+      <div><h4>Farmers Carry</h4><p>Alterna <b>← →</b> para caminar. El agarre se gasta: suelta las pesas con <b>ESPACIO</b> para recuperarlo (está permitido) antes de que se te caigan.</p></div>
+      <div><h4>Sandbag Lunges</h4><p>Mantén <b>←</b> hasta que la rodilla toque el piso y suelta; luego <b>→</b>. Si sueltas antes: no-rep.</p></div>
+      <div><h4>Wall Balls</h4><p>Mantén <b>ESPACIO</b>: baja a la sentadilla; abajo la barra de fuerza sube y baja. Suelta en la franja para pegarle al blanco (2,70 m mujeres / 3,00 m hombres).</p></div>
+      <div><h4>Doubles</h4><p>Corren juntos (no se separen más de 10 s: +1 min). En las estaciones pulsa <b>E</b> para cambiar con tu pareja; el que descansa recupera energía. Con Jugador 2: J1 usa <b>WASD + ESPACIO + E</b>, J2 usa <b>flechas + ENTER + SHIFT derecho</b>.</p></div>
+      <div><h4>Relay</h4><p>Equipo de 4: cada uno hace 2 × (1 km + estación) y le da el relevo al siguiente en la Roxzone.</p></div>
+      <div><h4>Penalizaciones (reglamento)</h4><p>No-rep: la 1.ª es aviso, desde la 2.ª +15 s (estaciones 1–7). Vuelta que falta: +7 min. Pareja separada: +1 min.</p></div>
+      <div><h4>En el celular</h4><p>Aparecen botones en pantalla con las mismas acciones.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- Récords -->
+<div id="records" class="screen">
+  <div class="panel wide scroll">
+    <div class="phead"><button class="back" data-go="home">←</button><h2>Mis tiempos</h2></div>
+    <div id="recList"></div>
+    <h4>Récords mundiales (no oficiales)</h4>
+    <table class="loads" id="wrList"></table>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud" hidden>
+  <div class="strip" id="strip"></div>
+  <div class="tl">
+    <div class="clock" id="hClock">0:00</div>
+    <div class="segn" id="hSeg">Run 1</div>
+    <div class="div" id="hDiv"></div>
+  </div>
+  <div class="tr" id="hBoard"></div>
+  <div class="bl">
+    <div class="who" id="hWho"></div>
+    <div class="meter"><span>ENERGÍA</span><div class="mbar"><i id="hEnergy"></i></div><b id="hEnergyN">100</b></div>
+    <div class="meter hr"><span>PULSO</span><b id="hHR">92</b><small>lpm</small></div>
+    <div class="meter" id="hMateBox" hidden><span id="hMateName">PAREJA</span><div class="mbar"><i id="hMate"></i></div><b id="hGap"></b></div>
+  </div>
+  <div class="bc" id="hCenter">
+    <div class="big" id="hBig"></div>
+    <div class="sub" id="hSub"></div>
+    <div class="gauge" id="hGauge"></div>
+    <div class="keys" id="hKeys"></div>
+  </div>
+  <div class="flash" id="hFlash"></div>
+  <div class="count" id="hCount"></div>
+  <div class="card" id="hCard"></div>
+  <button class="pause" id="hPause" title="Pausa (Esc)">II</button>
+</div>
+
+<!-- Botones táctiles -->
+<div id="touch" hidden>
+  <div class="tpad left"><button data-k="L">◀</button><button data-k="R">▶</button></div>
+  <div class="tpad mid"><button data-k="U">▲</button><button data-k="D">▼</button></div>
+  <div class="tpad right"><button data-k="S" class="sm" id="tSwap">E</button><button data-k="A" class="act">●</button></div>
+</div>
+
+<!-- Pausa -->
+<div id="pause" class="screen dim">
+  <div class="panel narrow">
+    <h2>Pausa</h2>
+    <div class="menu">
+      <button class="btn primary" id="pResume">Seguir</button>
+      <button class="btn" id="pRestart">Reiniciar</button>
+      <button class="btn" id="pQuit">Salir al menú</button>
+    </div>
+  </div>
+</div>
+
+<!-- Resultados -->
+<div id="results" class="screen dim">
+  <div class="panel wide scroll">
+    <div class="rhead">
+      <div><div class="rlabel" id="rDiv"></div><div class="rtime" id="rTime"></div><div class="rpos" id="rPos"></div></div>
+      <div class="rbadges" id="rBadges"></div>
+    </div>
+    <div class="cols">
+      <div><h4>Tramos</h4><table class="splits" id="rSplits"></table></div>
+      <div><h4>Clasificación del heat</h4><table class="splits" id="rHeat"></table><h4>Penalizaciones</h4><div id="rPens" class="note"></div></div>
+    </div>
+    <div class="pfoot"><button class="btn" id="rMenu">Menú</button><button class="btn primary" id="rAgain">Otra carrera</button></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
