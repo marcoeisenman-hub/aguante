@@ -172,3 +172,30 @@ b{font-weight:700}
 .oplayers i{width:14px;height:14px;border-radius:4px;display:inline-block}
 .oplayers small{margin-left:auto;color:var(--mut);font-weight:500}
 #oUrl{flex:1;min-width:0}
+
+.tcard{display:flex;align-items:center;gap:16px;margin-bottom:12px}
+.tovr{background:var(--acc);color:#000;border-radius:12px;padding:8px 16px;display:flex;flex-direction:column;align-items:center;transform:skewX(-6deg)}
+.tovr b{font-size:44px;font-weight:800;line-height:1}.tovr span{font-size:11px;font-weight:800;letter-spacing:.2em}
+.tmeta{color:var(--mut);font-size:14px}.tmeta b{color:#fff}
+.tstats{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.tst{display:grid;grid-template-columns:110px 1fr 36px;align-items:center;gap:10px;font-weight:600;font-size:14px}
+.tst .mbar,.tfat .mbar{height:9px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden}
+.tst .mbar i{display:block;height:100%;background:var(--acc)}.tst b{text-align:right}
+.tfat{display:grid;grid-template-columns:110px 1fr 46px;align-items:center;gap:10px}
+.tfat .mbar i{display:block;height:100%}
+.tlog{display:flex;flex-direction:column;gap:4px;font-size:13px;max-height:170px;overflow:auto}
+.tlog span{color:var(--acc)}
+.tapbox{position:fixed;inset:0;margin:auto;width:min(560px,94vw);height:max-content;background:#0b0b0c;border:1px solid var(--line);border-radius:16px;padding:22px 26px;z-index:30;text-align:center;user-select:none;touch-action:none}
+.tapbox .back{position:absolute;right:12px;top:12px}
+.tapbar{position:relative;height:36px;background:rgba(255,255,255,.08);border-radius:8px;margin:18px 0 14px}
+.tapbar .g-zone{position:absolute;top:0;bottom:0;background:rgba(61,220,132,.45);border-radius:6px}
+.tapbar .g-needle{top:-4px;height:44px}
+.tapreps{display:flex;gap:6px;justify-content:center}.tapreps i{width:22px;height:8px;border-radius:4px;background:rgba(255,255,255,.12)}
+.tapreps i.ok{background:var(--good)}.tapreps i.meh{background:var(--meh)}.tapreps i.no{background:var(--bad)}
+
+.screen.left{justify-content:flex-start;padding-left:4vw}
+.panel.ed{width:min(380px,92vw)}.panel.ed input{width:100%}
+@media (max-width:700px){.screen.left{align-items:flex-end;justify-content:center;padding:0 0 10px}.panel.ed{max-height:52vh;overflow:auto}}
+
+.hpen{color:var(--bad);font-weight:700;font-size:15px;min-height:1px}
+.rtime + .hpen{font-size:17px;margin-top:2px}

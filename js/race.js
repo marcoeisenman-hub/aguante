@@ -1,7 +1,8 @@
 import { seeded } from './online.js';
+import { applyProfile } from './career.js';
 // Motor de la carrera: reloj (K× más rápido que el real), rivales con IA, energía, Roxzone, vueltas y penalizaciones.
 import * as THREE from 'three';
-import { STATIONS, SPLITS, PAPA, NAMES, COUNTRIES, PENALTY, LAPS_PER_KM, fieldDistribution, fmt } from './data.js';
+import { STATIONS, SPLITS, PAPA, NAMES, COUNTRIES, PENALTY, LAPS_PER_KM, fieldDistribution, fmt, ageFactor, ageGroup } from './data.js';
 import { TRACK, trackPos, trackDir, ROX, IN_S, OUT_S, LANES, laneOf } from './world.js';
 import { Athlete, ACTIONS } from './athlete.js';
 import { CTRL, REF, aiStation, stationEntry, stationExit, place } from './stations.js';
@@ -11,6 +12,7 @@ import { Autopilot } from './auto.js';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const RUNVIS = LAPS_PER_KM * TRACK.P - 9;                 // metros visuales de un "km"
+export const RUN_LANES = [-1.7, -0.6, 0.5, 1.6];
 const GEARS = [
   { name: 'SUAVE', mul: 0.74, drain: -0.12 },
   { name: 'CÓMODO', mul: 0.86, drain: -0.05 },
@@ -73,6 +75,8 @@ export class Race {
     const [best, med, worst] = fieldDistribution(div);
     const heat = this.practice ? 1 : Math.max(1, (div.elite ? 15 : 8) - remotes.length);
     const level = o.level || 'comp';     // 'amateur' | 'comp' | 'elite'
+    this.age = o.age || 0; this.ageK = this.age ? ageFactor(this.age) : 1;   // tu grupo de edad: rivales de tu edad
+    this.ageGroup = this.age ? ageGroup(div.format, this.age) : '';
     const used = new Set();
     const pick = sex => { let n, tries = 0; do n = NAMES[sex][(Math.random() * NAMES[sex].length) | 0]; while (used.has(n) && ++tries < 60); used.add(n); return n; };
     // tiempos del campo
@@ -82,7 +86,7 @@ export class Race {
       if (level === 'amateur') m = lerp(med * 0.88, worst * 0.92, Math.random());
       else if (level === 'elite') m = lerp(best, best + (med - best) * 0.45, Math.random());
       else m = lerp(best + (med - best) * 0.25, med * 1.05, i / Math.max(1, heat - 2) * 0.85 + Math.random() * 0.15);
-      totals.push(m * 60);
+      totals.push(m * 60 / this.ageK);
     }
     // jugador
     const me = {
@@ -98,8 +102,12 @@ export class Race {
       pm.runMul = (avg * 0.93) / REF.M.run; pm.maxMul = 1.06;
       pm.pow = {}; STATIONS.forEach((st, i) => pm.pow[st.id] = Math.min(1, (REF.M[st.id] / PAPA.seg[2 * i + 1]) * 1.1));
     }
+    if (o.profile) applyProfile(me.members[0], o.profile);   // tu atleta entrenado
+    if (this.ageK !== 1) for (const m of me.members) { if (m.papa) continue; m.ageK = this.ageK; }
+    this.look = o.look || {};
+    this.trainPart = o.trainPart || 0;
     me.members.forEach((m, k) => {
-      m.av = new Athlete(m.sex, m.papa ? 2 : me.kit); this.world.scene.add(m.av.group);
+      m.av = new Athlete(m.sex, m.papa ? 2 : me.kit, k === 0 ? this.look : {}); this.world.scene.add(m.av.group);
       const set0 = m.av.set.bind(m.av);
       m.av.set = (a, ph, op = {}) => { m.av.last = [a, ph, { speed: op.speed, load: op.load, effort: op.effort, fatigue: op.fatigue }]; return set0(a, ph, op); };
     });
@@ -110,7 +118,7 @@ export class Race {
     remotes.forEach((r, i) => {
       const e = { id: 200 + i, isPlayer: false, isRemote: true, rid: r.id, name: r.name || 'Amigo', country: r.country || 'PAN', lane: r.lane % LANES, kit: r.kit ?? 0, members: [], finished: false, prog: 0, label: 'Run 1' };
       e.members = [{ sex: div.sexes[0], name: e.name }];
-      e.members[0].av = new Athlete(e.members[0].sex, e.kit); this.world.scene.add(e.members[0].av.group);
+      e.members[0].av = new Athlete(e.members[0].sex, e.kit, { skin: r.skin | 0, height: Math.min(1.06, Math.max(0.94, +r.height || 1)) }); this.world.scene.add(e.members[0].av.group);
       usedLanes.add(e.lane); this.remotes.set(r.id, e); this.entries.push(e);
     });
     let lane = 0;
@@ -194,7 +202,7 @@ export class Race {
     }
     // en la Roxzone el reloj corre más lento (si no, los caminos largos del pabellón inflan el tiempo)
     const rox = this.me.phase === 'roxIn' || this.me.phase === 'roxOut' || this.me.phase === 'toFinish';
-    const simDt = dt * this.K * (rox ? 0.55 : 1);
+    const simDt = dt * this.K * (rox ? 0.55 : 1) * (this.me.phase === 'station' && this.me.ctl?.kw || 1);
     this.real += dt;
     if (!this.me.finished) this.clock += simDt;
     this.updatePlayer(dt, simDt, I);
@@ -378,6 +386,7 @@ export class Race {
     me.segStart = this.clock; me.sRun = 0; me.passes = 0; me.lapWarned = false; me.extraLaps = 0;
     me.s = me.seg === 0 ? me.s : OUT_S;
     if (me.seg > 0) me.lat = -1.6;
+    me.laneR = 1;                 // sales de la Roxzone al carril 2: para entrar hay que pasarse al 1
     me.compromised = me.seg === 4 || me.seg === 6 || me.seg === 14 ? 1 : 0;    // después de trineos/zancadas
     const km = me.seg / 2 + 1;
     this.events('seg', { kind: 'run', km });
@@ -389,18 +398,23 @@ export class Race {
     if (I.pressed('U')) { me.gear = Math.min(4, me.gear + 1); this.sfx('ui'); }
     if (I.pressed('D')) { me.gear = Math.max(0, me.gear - 1); this.sfx('ui'); }
     const G = GEARS[me.gear];
-    const ref = REF[m.sex].run;                                  // seg/km a ritmo "RITMO"
+    const ref = REF[m.sex].run / ((m.prof?.run || 1) * (m.ageK || 1));             // seg/km a ritmo "RITMO"
     let vSim = (1000 / ref) * G.mul * this.energyFactor(m);
     if (me.compromised > 0) { vSim *= lerp(1, 0.9, me.compromised); me.compromised = Math.max(0, me.compromised - simDt / 120); }
     // dobles: el compañero
     let mate = null;
     if (this.div.format === 'doubles') mate = me.members[1];
-    m.energy = clamp(m.energy - G.drain * simDt * (m.fit || 1), 0, 100);
+    const dr = G.drain > 0 ? G.drain * (m.prof?.drain || 1) : G.drain * (m.prof?.regen || 1);
+    m.energy = clamp(m.energy - dr * simDt * (m.fit || 1), 0, 100);
     m.intensity = 0.35 + me.gear * 0.18;
     const vVis = vSim * this.K * RUNVIS / 1000;
     // dirección lateral
-    const steer = (I.down('R') ? 1 : 0) - (I.down('L') ? 1 : 0);
-    me.lat = clamp(me.lat + steer * dt * 3.2, -TRACK.W / 2 + 0.3, TRACK.W / 2 - 0.3);
+    // 4 carriles: ← un carril hacia adentro (izquierda), → uno hacia afuera. El 1 es el interior (entrada a la Roxzone)
+    if (me.laneR == null) me.laneR = RUN_LANES.reduce((b, x, i) => Math.abs(x - me.lat) < Math.abs(RUN_LANES[b] - me.lat) ? i : b, 0);
+    if (I.pressed('L') && me.laneR > 0) { me.laneR--; this.sfx('ui'); }
+    if (I.pressed('R') && me.laneR < RUN_LANES.length - 1) { me.laneR++; this.sfx('ui'); }
+    const dLat = (RUN_LANES[me.laneR] - me.lat) * (1 - Math.exp(-dt * 7)); me.lat += dLat;
+    const steer = clamp(dLat / Math.max(1e-4, dt) / 4, -1, 1);   // inclinar el cuerpo al cambiar de carril
     // choques con rivales
     let slow = 1;
     for (const e of this.entries) {
@@ -490,8 +504,8 @@ export class Race {
     const st = this.stationOf(me.phase === 'roxIn' ? me.seg + 1 : me.seg).id;
     const path = this.roxPath(me.phase, st, me.lane, 0);
     const fast = I.down('U') || I.down('A');
-    const vSim = (1000 / REF[m.sex].run) * (fast ? 1.05 : 0.82) * this.energyFactor(m);
-    if (fast) m.energy = clamp(m.energy - 0.06 * simDt, 0, 100); else m.energy = clamp(m.energy + 0.05 * simDt, 0, 100);
+    const vSim = (1000 / REF[m.sex].run) * (m.prof?.run || 1) * (m.ageK || 1) * (fast ? 1.05 : 0.82) * this.energyFactor(m);
+    if (fast) m.energy = clamp(m.energy - 0.06 * (m.prof?.drain || 1) * simDt, 0, 100); else m.energy = clamp(m.energy + 0.05 * (m.prof?.regen || 1) * simDt, 0, 100);
     m.intensity = fast ? 0.9 : 0.6;
     const vVis = vSim * this.K * RUNVIS / 1000 * 0.75;
     me.roxF += vVis * dt / path.len;
@@ -571,7 +585,7 @@ export class Race {
       if (k === me.worker) { m.energy = clamp(m.energy + 0.012 * simDt, 0, 100); m.intensity = 0.55 + Math.min(0.6, (m.effort || 0)); }
       else if (doubles) { m.energy = clamp(m.energy + 0.22 * simDt, 0, 100); m.intensity = 0.3; m.av.set('rest', 0, {}); }
     }
-    if (me.ctl.finished) {
+    if (me.ctl.finished || (this.practice && this.trainPart && me.ctl.done >= me.ctl.total * this.trainPart - 1e-6)) {
       me.splits[me.seg] = this.clock - me.segStart;
       this.events('split', { seg: me.seg, t: me.splits[me.seg] });
       me.ctl.dispose?.();

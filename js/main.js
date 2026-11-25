@@ -4,11 +4,13 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { World, trackPos, trackDir, TRACK, ROX, OUT_S } from './world.js';
-import { loadAthletes } from './athlete.js';
+import { loadAthletes, Athlete, SKINS } from './athlete.js';
 import { Race, GEARS, SEG_NAMES } from './race.js';
-import { division, validDivision, STATIONS, RECORDS, fmt, COUNTRIES, fieldDistribution, PAPA, LOADS } from './data.js';
+import { division, validDivision, STATIONS, RECORDS, fmt, COUNTRIES, fieldDistribution, PAPA, LOADS, ageGroup as agOf, ageFactor } from './data.js';
 import { Audio } from './audio.js';
 import { Room, newCode } from './online.js';
+import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace } from './career.js';
+import { REF } from './stations.js';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -115,6 +117,8 @@ function show(id) {
   if (id === 'setup') renderSetup();
   if (id === 'records') renderRecords();
   if (id === 'practice') renderPractice();
+  if (id === 'train') renderTrain();
+  editorOpen = id === 'editor'; if (editorOpen) renderEditor(); else dropPreview();
 }
 for (const b of $$('[data-go]')) b.addEventListener('click', () => { initAudio(); Audio.sfx('ui'); show(b.dataset.go); });
 function initAudio() {
@@ -175,10 +179,12 @@ function renderSetup() {
   const sel = $('#pCountry'); if (!sel.options.length) sel.innerHTML = COUNTRIES.map(c => `<option>${c}</option>`).join('');
   sel.value = S.country; sel.onchange = () => S.country = sel.value;
   const nm = $('#pName'); nm.value = S.name; nm.oninput = () => S.name = nm.value.trim();
-  const ag = $('#pAge'); ag.value = S.age; ag.onchange = () => S.age = clamp(+ag.value || 16, 16, 89);
+  const ag = $('#pAge'); ag.value = S.age; ag.onchange = () => { S.age = clamp(+ag.value || 16, 16, 89); renderSetup(); };
+  $('#pAgeG').textContent = `Grupo de edad ${agOf(S.format, S.age)}: tus rivales son de tu edad` + (ageFactor(S.age) < 0.999 ? ` (rendimiento ${Math.round(ageFactor(S.age) * 100)}%)` : '');
   $('#kits').innerHTML = KIT_COLORS.map((c, i) => `<button style="background:${c}" data-i="${i}" class="${i === S.kit ? 'on' : ''}"></button>`).join('');
   for (const b of $$('#kits button')) b.onclick = () => { S.kit = +b.dataset.i; renderSetup(); };
   const g = $('#pGhost'); g.checked = S.ghost; g.onchange = () => S.ghost = g.checked;
+  const up = $('#pProf'); up.checked = S.useProf !== false; up.onchange = () => { S.useProf = up.checked; store.set('aguanteSetup', S); }; $('#pProfOvr').textContent = overall(loadProfile());
   store.set('aguanteSetup', S);
 }
 $('#goRace').addEventListener('click', () => {
@@ -187,8 +193,104 @@ $('#goRace').addEventListener('click', () => {
   startRace();
 });
 
+// ---------------- Editor de personaje ----------------
+let preview = null, editorOpen = false;
+const HEIGHTS = [[0.95, 'Bajo'], [1, 'Normal'], [1.05, 'Alto']];
+const SKIN_SW = ['#e9c4a6', '#d8a684', '#b07a58', '#81553c', '#5a3a29'];
+function edSex() { return S.edSex || (S.cat === 'W' ? 'F' : 'M'); }
+function renderEditor() {
+  const sx = edSex();
+  for (const b of $$('#eSex button')) { b.classList.toggle('on', b.dataset.v === sx); b.onclick = () => { S.edSex = b.dataset.v; if (S.format === 'singles') S.cat = b.dataset.v === 'F' ? 'W' : 'M'; renderEditor(); }; }
+  $('#eKits').innerHTML = KIT_COLORS.map((c, i) => `<button style="background:${c}" data-i="${i}" class="${i === S.kit ? 'on' : ''}"></button>`).join('');
+  for (const b of $$('#eKits button')) b.onclick = () => { S.kit = +b.dataset.i; renderEditor(); };
+  $('#eSkin').innerHTML = SKIN_SW.map((c, i) => `<button style="background:${c}" data-i="${i}" class="${i === (S.skin | 0) ? 'on' : ''}"></button>`).join('');
+  for (const b of $$('#eSkin button')) b.onclick = () => { S.skin = +b.dataset.i; renderEditor(); };
+  $('#eHeight').innerHTML = HEIGHTS.map(([h, n]) => `<button data-v="${h}" class="${h === (S.height || 1) ? 'on' : ''}">${n}</button>`).join('');
+  for (const b of $$('#eHeight button')) b.onclick = () => { S.height = +b.dataset.v; renderEditor(); };
+  const nm = $('#eName'); nm.value = S.name; nm.oninput = () => { S.name = nm.value.trim(); store.set('aguanteSetup', S); };
+  store.set('aguanteSetup', S);
+  buildPreview();
+}
+function buildPreview() {
+  dropPreview();
+  preview = new Athlete(edSex(), S.kit, { skin: S.skin | 0, height: S.height || 1 });
+  preview.group.position.set(0, 0, 0); world.scene.add(preview.group);
+}
+function dropPreview() { if (preview) { preview.group.parent?.remove(preview.group); preview = null; } }
+function editorUpdate(dt, t) {
+  if (!preview) return;
+  preview.group.rotation.y = t * 0.6;
+  preview.set(Math.floor(t / 6) % 2 ? 'cheer' : 'stand', (t * 0.8) % 1, {}); preview.update(dt);
+  const portrait = innerWidth < innerHeight;
+  camPos.lerp(tmpA.set(portrait ? 0 : -0.75, 1.15, 2.5), 1 - Math.exp(-dt * 4)); camLook.lerp(tmpB.set(portrait ? 0 : -0.65, 0.95, 0), 1 - Math.exp(-dt * 4));
+}
+let editorFrom = 'setup';
+$('#eDone').onclick = () => { show(editorFrom || 'setup'); };
+for (const b of $$('[data-go=editor]')) b.addEventListener('click', () => { editorFrom = b.closest('.screen')?.id || 'setup'; }, true);
+
+// ---------------- Entrenar ----------------
+function renderTrain() {
+  const P = loadProfile(), o = overall(P);
+  $('#tOvr').textContent = o; $('#tDay').textContent = P.day; $('#tSes').textContent = P.sessions; $('#tRaces').textContent = P.races;
+  $('#tFat').style.width = P.fatigue + '%'; $('#tFat').style.background = P.fatigue < 40 ? 'var(--good)' : P.fatigue < 70 ? 'var(--meh)' : 'var(--bad)';
+  $('#tFatN').textContent = Math.round(P.fatigue) + '%';
+  $('#tFatNote').textContent = P.fatigue >= 70 ? 'Muy cansado: entrenar ahora rinde poco y en carrera arrancas con menos energía. Descansa.' : P.fatigue >= 40 ? 'Algo cansado: un día de descanso te ayuda.' : 'Fresco para entrenar o competir.';
+  $('#tStats').innerHTML = STATS.map(st => `<div class="tst" title="${st.desc}"><span>${st.name}</span><div class="mbar"><i style="width:${P.stats[st.id]}%"></i></div><b>${Math.round(P.stats[st.id])}</b></div>`).join('');
+  $('#tList').innerHTML = TRAININGS.map(t => `<button class="btn" data-t="${t.id}">${t.name}<small>${Object.keys(t.gains).map(k => STATS.find(x => x.id === k).name).join(' · ')}${t.fatigue > 0 ? ' · cansa ' + t.fatigue : ' · recupera'}</small></button>`).join('');
+  for (const b of $$('#tList button')) b.onclick = () => startTraining(TRAININGS.find(t => t.id === b.dataset.t));
+  $('#tLog').innerHTML = P.log.length ? P.log.map(l => `<div>Día ${l.day} · ${escapeHtml(l.t)}${l.q != null && !/Descanso/.test(l.t) ? ' · ' + l.q + '%' : ''} <span>${Object.entries(l.up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(', ')}</span></div>`).join('') : '<div>Todavía no entrenaste.</div>';
+}
+$('#tReset').onclick = () => { if ($('#tReset').dataset.sure) { resetProfile(); delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; renderTrain(); } else { $('#tReset').dataset.sure = 1; $('#tReset').textContent = '¿Seguro? Pulsa otra vez'; setTimeout(() => { delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; }, 3000); } };
+function startTraining(t) {
+  initAudio(); Audio.sfx('ui');
+  if (t.kind === 'rest') { const P = loadProfile(); train(P, t, 1); Audio.sfx('good'); renderTrain(); return; }
+  if (t.kind === 'station') { startRace(t.st, null, t); return; }
+  tapGame(t);
+}
+// mini-juego de ritmo para correr: la aguja va y viene; ESPACIO (o tocar) cuando está en la franja
+let tap = null;
+function tapGame(t) {
+  const box = $('#tapBox'); box.hidden = false;
+  $('#tapName').textContent = t.name; $('#tapTip').textContent = t.tip;
+  const zw = t.slow ? 0.26 : 0.18;
+  tap = { t, rep: 0, hits: [], x: 0, dir: 1, speed: t.slow ? 0.55 : 0.95, zone: 0, zw, done: false, last: performance.now(), cool: 0 };
+  newZone(); requestAnimationFrame(tapLoop); drawTap();
+}
+function newZone() { tap.zone = 0.15 + Math.random() * (0.85 - 0.15 - tap.zw); }
+function drawTap() {
+  $('#tapZone').style.left = tap.zone * 100 + '%'; $('#tapZone').style.width = tap.zw * 100 + '%';
+  $('#tapNeedle').style.left = tap.x * 100 + '%';
+  $('#tapReps').innerHTML = Array.from({ length: tap.t.reps }, (_, i) => `<i class="${i < tap.hits.length ? (tap.hits[i] > 0.6 ? 'ok' : tap.hits[i] > 0 ? 'meh' : 'no') : ''}"></i>`).join('');
+}
+function tapLoop(now) {
+  if (!tap || tap.done) return;
+  const dt = Math.min(0.05, (now - tap.last) / 1000); tap.last = now;
+  tap.x += tap.dir * tap.speed * dt * (1 + tap.hits.length * 0.06);
+  if (tap.x > 1) { tap.x = 1; tap.dir = -1; } if (tap.x < 0) { tap.x = 0; tap.dir = 1; }
+  tap.cool -= dt;
+  drawTap(); requestAnimationFrame(tapLoop);
+}
+function tapHit() {
+  if (!tap || tap.done || tap.cool > 0) return;
+  tap.cool = 0.25;
+  const c = tap.zone + tap.zw / 2, d = Math.abs(tap.x - c) / (tap.zw / 2);
+  const v = d <= 1 ? 1 - d * 0.5 : Math.max(0, 0.3 - (d - 1) * 0.3);
+  tap.hits.push(v); Audio.sfx(v > 0.6 ? 'good' : v > 0 ? 'step' : 'bad');
+  newZone(); drawTap();
+  if (tap.hits.length >= tap.t.reps) {
+    tap.done = true;
+    const q = tap.hits.reduce((a, b) => a + b, 0) / tap.t.reps;
+    const P = loadProfile(); const up = train(P, tap.t, q);
+    $('#tapTip').innerHTML = `Calidad <b>${Math.round(q * 100)}%</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
+    setTimeout(() => { $('#tapBox').hidden = true; tap = null; renderTrain(); }, 1800);
+  }
+}
+$('#tapBox').addEventListener('pointerdown', e => { if (e.target.id !== 'tapClose') { e.preventDefault(); tapHit(); } });
+$('#tapClose').onclick = () => { tap = null; $('#tapBox').hidden = true; };
+addEventListener('keydown', e => { if (tap && !tap.done && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); if (!e.repeat) tapHit(); } });
+
 // ---------------- Online ----------------
-let room = null, roomCfg = null, onlineRace = false, sendT = 0;
+let room = null, roomCfg = null, onlineRace = false, sendT = 0, training = null;
 const hostCfg = () => ({ format: S.format, cat: S.cat, level: S.level, heat: S.heat, K });
 function divLabel(c) { return division(c.format, c.cat, c.level).name; }
 function openRoom(code) {
@@ -282,8 +384,8 @@ function demoUpdate(dt, t) {
 }
 
 // ---------------- Carrera ----------------
-function startRace(practice = null, on = null) {
-  onlineRace = !!on;
+function startRace(practice = null, on = null, tr = null) {
+  onlineRace = !!on; training = tr;
   demo?.dispose(); demo = null;
   race?.dispose();
   const d = division(S.format, S.cat, S.level);
@@ -293,8 +395,10 @@ function startRace(practice = null, on = null) {
   race = new Race({
     world, div: d, K: on?.K ?? K, seed: on?.seed, remotes: on?.remotes, lane: on?.lane, audio: { sfx: (n, o) => Audio.sfx(n, o), cheer: s => Audio.cheer(s), say: (t, o) => { if ($('#optVoice').checked) Audio.say(t, o); } },
     level: S.heat, name: S.name || 'Tú', country: S.country, kit: S.kit, ghost: S.ghost && !(d.format === 'doubles' && S.partner === 'papa'), twoP, partner: S.partner, practice, events: onRaceEvent,
+    profile: (tr || (S.useProf !== false && !practice)) ? loadProfile() : null, trainPart: tr?.part || 0,
+    age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 },
   });
-  race.me.age = S.age;
+  race.me.age = S.age; race.usedProfile = !practice && !tr && S.useProf !== false;
   if (on) race.countdown += (on.wait || 0) / 1000;
   hudInit();
   show(null); $('#hud').hidden = false; $('#touch').hidden = !isTouch;
@@ -314,7 +418,7 @@ $('#pRestart').onclick = () => { if (onlineRace) { quitToMenu(); show('online');
 $('#pQuit').onclick = quitToMenu;
 $('#hPause').onclick = pauseGame;
 $('#rMenu').onclick = quitToMenu;
-$('#rAgain').onclick = () => { if (onlineRace && room) { quitToMenu(); show('online'); renderLobby(); return; } startRace(lastSetup); };
+$('#rAgain').onclick = () => { if (training) { quitToMenu(); show('train'); return; } if (onlineRace && room) { quitToMenu(); show('online'); renderLobby(); return; } startRace(lastSetup); };
 function quitToMenu() {
   race?.dispose(); race = null; state = 'menu';
   $('#hud').hidden = true; $('#touch').hidden = true;
@@ -342,7 +446,7 @@ function onSplit({ seg, t }) {
 function hudInit() {
   const d = race.div;
   $('#strip').innerHTML = SEG_NAMES.map((n, i) => `<i class="${i % 2 ? 'st' : ''}" title="${n}"></i>`).join('');
-  $('#hDiv').textContent = d.name + (race.practice ? ' · práctica' : '');
+  $('#hDiv').textContent = d.name + (race.practice ? ' · práctica' : race.ageGroup ? ' · ' + race.ageGroup : '');
   $('#hMateBox').hidden = d.format !== 'doubles';
   $('#hCard').classList.remove('show');
   $('#hFlash').innerHTML = ''; $('#hCount').textContent = '';
@@ -351,7 +455,10 @@ let hudT = 0;
 function hudUpdate(dt) {
   hudT += dt; if (hudT < 0.05) return; hudT = 0;
   const me = race.me, m = race.active;
-  $('#hClock').textContent = fmt(race.clock + me.pens.reduce((a, p) => a + p.sec, 0));
+  // reloj = tiempo real en pista; abajo, lo que suman las penalizaciones
+  const penS = me.pens.reduce((a, p) => a + p.sec, 0);
+  $('#hClock').textContent = fmt(me.finished ? me.finishClock : race.clock);
+  $('#hPenL').textContent = penS ? `+${fmt(penS)} penalización` : '';
   const segName = me.phase === 'run' ? `Run ${me.seg / 2 + 1} · vuelta ${Math.min(2, (me.lapOf || 1))}/2` : me.phase === 'station' ? `${me.seg / 2 + 0.5 | 0 + 1}` : 'Roxzone';
   const stI = (me.seg - 1) / 2;
   $('#hSeg').textContent = me.finished ? 'Meta' : me.phase === 'run' ? `Run ${me.seg / 2 + 1} de 8 · vuelta ${Math.min(2, me.lapOf || 1)}/2` : me.phase === 'station' ? `${stI + 1}. ${STATIONS[stI].name}` : me.phase === 'toFinish' ? 'A la meta' : 'Roxzone';
@@ -375,8 +482,8 @@ function hudUpdate(dt) {
     big.textContent = `${Math.round(kmDone)} m`;
     sub.textContent = `${fmt(me.paceKm)} /km`;
     gEl.innerHTML = `<div class="gears">${GEARS.map((g, i) => `<b class="${i === me.gear ? 'on' + (i >= 3 ? ' hot' : '') : ''}">${g.name}</b>`).join('')}</div>`;
-    const inHint = me.nearIn ? (me.finalLap ? '<b style="color:var(--acc)">← ROXZONE: pégate a la izquierda</b>' : '<span style="color:var(--meh)">Falta 1 vuelta: no entres</span>') : '';
-    keys.innerHTML = inHint || `<span><kbd>↑↓</kbd>ritmo</span><span><kbd>←→</kbd>carril</span>` + (me.paceKm <= 240 && me.lat > -0.5 ? '<span style="color:var(--meh)">Ritmo ≤ 4:00/km: usa el Fast Lane (izquierda)</span>' : '');
+    const inHint = me.nearIn ? (me.finalLap ? (me.laneR === 0 ? '<b style="color:var(--good)">Carril 1: entras a la Roxzone ✓</b>' : '<b style="color:var(--acc)">← ROXZONE: pásate al carril 1</b>') : (me.laneR === 0 ? '<b style="color:var(--bad)">Falta 1 vuelta: NO entres → sal del carril 1</b>' : '<span style="color:var(--meh)">Falta 1 vuelta: no entres</span>')) : '';
+    keys.innerHTML = inHint || `<span><kbd>↑↓</kbd>ritmo</span><span><kbd>←→</kbd>carril ${(me.laneR ?? 0) + 1}/4</span>` + (me.paceKm <= 240 && me.lat > -0.5 ? '<span style="color:var(--meh)">Ritmo ≤ 4:00/km: usa el Fast Lane (izquierda)</span>' : '');
   } else if (me.phase === 'station' && me.ctl) {
     const h = me.ctl.hud();
     big.textContent = h.big || ''; sub.textContent = h.sub || '';
@@ -393,7 +500,8 @@ function hudUpdate(dt) {
   const st = race.standings();
   const myPos = st.findIndex(x => x.e.isPlayer) + 1;
   const n = st.length;
-  $('#hBoard').innerHTML = `<div class="hd"><span>HEAT · ${race.div.name}</span><span>P${myPos}/${n}</span></div>` +
+  if (me.phase === 'station' && !race.practice) { $('#hBoard').innerHTML = stationBoard(); } else
+  $('#hBoard').innerHTML = `<div class="hd"><span>HEAT · ${race.div.name}${race.ageGroup ? ' · ' + race.ageGroup : ''}</span><span>P${myPos}/${n}</span></div>` +
     st.slice(0, 9).map((x, i) => `<div class="r ${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><span>${i + 1}</span><span>${escapeHtml(x.e.name.length > 22 ? x.e.name.slice(0, 21) + '…' : x.e.name)}${x.e.isRemote ? ' ●' : ''}</span><span>${escapeHtml(x.label)}</span></div>`).join('');
   // tarjeta de estación
   const phase = me.phase + me.seg;
@@ -404,6 +512,19 @@ function hudUpdate(dt) {
   }
   if (cardT > 0) { cardT -= 0.05; if (cardT <= 0) $('#hCard').classList.remove('show'); }
 }
+// tabla de la estación: dónde va cada uno en la estación en la que estás
+function stationBoard() {
+  const me = race.me, i = (me.seg - 1) / 2, st = STATIONS[i], base = i * 4 + 2;
+  const rows = race.entries.map(e => {
+    let f, done = false, wait = false;
+    if (e.isPlayer) f = me.ctl ? me.ctl.done / me.ctl.total : 0;
+    else { const p = e.finished ? 999 : (e.prog ?? 0); if (p >= base + 1) done = true; else if (p >= base) f = p - base; else wait = true; }
+    return { e, f: done ? 1 : wait ? -1 : Math.max(0, Math.min(0.999, f)), done, wait };
+  }).sort((a, b) => b.f - a.f);
+  const val = r => r.done ? '✓ salió' : r.wait ? 'aún no llega' : st.unit === 'reps' ? Math.floor(r.f * st.dist) + ' reps' : Math.floor(r.f * st.dist) + ' m';
+  return `<div class="hd"><span>${st.name.toUpperCase()} · ${st.dist}${st.unit === 'reps' ? ' reps' : ' m'}</span><span>${rows.findIndex(r => r.e.isPlayer) + 1}.º aquí</span></div>` +
+    rows.slice(0, 9).map((r, k) => `<div class="r ${r.e.isPlayer ? 'me' : ''} ${r.e.ghost ? 'gh' : ''}" style="background-image:linear-gradient(90deg,rgba(255,229,0,.16) ${Math.max(0, r.f) * 100}%,transparent ${Math.max(0, r.f) * 100}%)"><span>${k + 1}</span><span>${escapeHtml(r.e.name.length > 22 ? r.e.name.slice(0, 21) + '…' : r.e.name)}</span><span>${val(r)}</span></div>`).join('');
+}
 let cardShown = false;
 function showCard() {
   const me = race.me; const idx = race.practice ? (me.seg - 1) / 2 : me.seg / 2 | 0;
@@ -413,14 +534,14 @@ function showCard() {
     row: ['1.000 m', 'damper 6'], farmers: ['2 × ' + l.farmers + ' kg', '200 m'], lunges: [l.sandbag + ' kg', '100 m', 'rodilla al piso'], wb: ['100 reps', l.ball + ' kg', 'blanco ' + (l.target ?? (sex === 'F' ? 2.7 : 3)).toFixed(2).replace('.', ',') + ' m'],
   }[st.id];
   const how = {
-    ski: 'Mantén ESPACIO para jalar y suelta cuando la aguja esté en verde. Deja que suban las manos.',
-    push: 'Alterna ← → parejo. No dejes que se pare el trineo: arrancarlo de nuevo cuesta.',
-    pull: 'Mano sobre mano alternando ← →. Al pasar los 12,5 m corres al otro lado.',
+    ski: 'Aprieta ← → o ESPACIO lo más rápido que puedas. ↑ ↓ cambia el damper: alto rinde más por jalón pero cansa más.',
+    push: 'Aprieta ← → o ESPACIO lo más rápido que puedas. No dejes que se pare: arrancarlo de nuevo cuesta.',
+    pull: 'Aprieta ← → o ESPACIO lo más rápido que puedas: cada toque es un jalón. Al pasar los 12,5 m corres al otro lado.',
     bbj: '↓ pecho al piso, ↑ arriba, ESPACIO carga el salto y suelta en verde.',
-    row: 'Mantén ESPACIO durante el jalón, suelta en verde. Recuperación tranquila.',
+    row: 'Aprieta ← → o ESPACIO lo más rápido que puedas. ↑ ↓ cambia el damper: alto rinde más por jalón pero cansa más.',
     farmers: 'Alterna ← →. Si el agarre se acaba, se caen: suéltalas antes con ESPACIO.',
     lunges: 'Mantén ← hasta que la rodilla toque, suelta; luego →. Siempre alternando.',
-    wb: 'Mantén ESPACIO para bajar; abajo suelta cuando la fuerza esté en la franja.',
+    wb: 'Cada toque de ESPACIO = sentadilla y lanzamiento. Toca justo cuando atrapas la pelota para ir sin pausas.',
   }[st.id];
   $('#hCard').innerHTML = `<div class="n">ESTACIÓN ${idx + 1} DE 8</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${how}</p>`;
   $('#hCard').classList.add('show'); cardT = race.practice ? 5 : 6; cardShown = true;
@@ -443,7 +564,23 @@ function showResults() {
   Audio.music(1);
   $('#touch').hidden = true;
   $('#rDiv').textContent = d.name + (race.practice ? ' · práctica' : '') + ' · HYBRID.RACE';
-  $('#rTime').textContent = fmt(me.total);
+  $('#rTime').textContent = fmt(me.total - (me.penTotal || 0));
+  $('#rPenL').textContent = me.penTotal ? `+${fmt(me.penTotal)} penalización · oficial ${fmt(me.total)}` : '';
+  $('#rAgain').textContent = 'Otra carrera';
+  if (race.practice && training) {
+    const t = training, sex = race.active.sex;
+    const exp = REF[sex][t.st] * t.part, got = me.splits[me.seg] || 1;
+    const q = Math.max(0, Math.min(1, (exp * 1.2) / got - me.pens.length * 0.1));
+    const P = loadProfile(); const up = train(P, t, q);
+    $('#rDiv').textContent = 'ENTRENAMIENTO · DÍA ' + (P.day - 1);
+    $('#rTime').textContent = fmt(got);
+    $('#rPos').innerHTML = `${escapeHtml(t.name)} · calidad <b>${Math.round(q * 100)}%</b> · nivel <b>${overall(P)}</b> · fatiga ${Math.round(P.fatigue)}%`;
+    $('#rBadges').innerHTML = Object.entries(up).map(([k, v]) => `<span class="acc">${STATS.find(x => x.id === k).name} +${v}</span>`).join('');
+    $('#rSplits').innerHTML = ''; $('#rHeat').innerHTML = '';
+    $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';
+    $('#rAgain').textContent = 'Seguir entrenando';
+    show('results'); return;
+  }
   if (race.practice) {
     const st = STATIONS[(me.seg - 1) / 2];
     $('#rPos').textContent = `${st.name}: ${fmt(me.splits[me.seg])}`;
@@ -451,6 +588,7 @@ function showResults() {
     $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';
     show('results'); return;
   }
+  if (race.usedProfile) { const P = loadProfile(); afterRace(P); }
   const st = race.standings();
   const pos = st.findIndex(x => x.e.isPlayer) + 1;
   // estimación en toda la división
@@ -460,8 +598,12 @@ function showResults() {
   const pct = 0.5 * (1 + erf(z / Math.SQRT2));
   const size = d.elite ? 15 : d.format === 'singles' ? (S.cat === 'M' ? (d.pro ? 260 : 1150) : (d.pro ? 130 : 720)) : d.format === 'doubles' ? 420 : 160;
   const est = Math.max(1, Math.round(pct * size));
-  const ag = ageGroup(me.age || 16);
-  $('#rPos').innerHTML = `Puesto <b>${pos}</b> de ${st.length} en el heat · aprox. <b>${est}</b> de ${size} en ${d.name}${d.format === 'singles' && !d.elite ? ` · grupo ${ag}: aprox. <b>${Math.max(1, Math.round(est * 0.1))}</b>` : ''}`;
+  const ag = agOf(d.format, me.age || 16), aK = ageFactor(me.age || 16);
+  // en tu grupo de edad comparas contra gente de tu edad: tu tiempo ajustado por edad contra el campo
+  const zA = (Math.log(me.total * aK / 60) - Math.log(med)) / sig, pctA = 0.5 * (1 + erf(zA / Math.SQRT2));
+  const agSize = Math.max(8, Math.round(size * (ag === '16–24' || ag === '16–29' ? 0.1 : ag.startsWith('6') || ag === '70+' ? 0.04 : 0.14)));
+  const estA = Math.max(1, Math.round(pctA * agSize));
+  $('#rPos').innerHTML = `Puesto <b>${pos}</b> de ${st.length} en el heat (grupo ${ag}) · aprox. <b>${est}</b> de ${size} en ${d.name}${!d.elite ? ` · grupo de edad ${ag}: aprox. <b>${estA}</b> de ${agSize}` : ''}`;
   // badges
   const badges = [];
   const rec = store.get('aguanteRecords', {});
@@ -491,7 +633,6 @@ function showResults() {
   $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} · ${p.why}`).join('  ·  ') : 'Ninguna. Carrera limpia.';
   show('results');
 }
-function ageGroup(a) { if (a < 25) return '16–24'; const b = Math.floor(a / 5) * 5; return `${b}–${b + 4}`; }
 function erf(x) { const t = 1 / (1 + 0.3275911 * Math.abs(x)); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; }
 
 // ---------------- Cámara de carrera ----------------
@@ -525,7 +666,8 @@ let last = performance.now(), T = 0, slowT = 0, boardT = 0;
 function loop(now) {
   requestAnimationFrame(loop);
   let dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
-  if (state === 'menu' && demo) demoUpdate(dt, T);
+  if (state === 'menu' && editorOpen) { if (demo) { demo.clock += dt * 5; demo.real += dt; demo.updateAI(dt); } editorUpdate(dt, T); }
+  else if (state === 'menu' && demo) demoUpdate(dt, T);
   if ((state === 'race' || (state === 'paused' && onlineRace)) && race) {
     pad1.frame(); pad2.frame();
     if (room && onlineRace) { sendT -= dt; if (sendT <= 0 && race.started) { sendT = 0.12; room.send({ t: 'st', s: race.snapshot() }); } }
@@ -554,4 +696,4 @@ function drawJumbo() {
 
 resize();
 boot().catch(e => { console.error(e); $('#loadtxt').textContent = 'Error al cargar: ' + e.message; });
-window.__game = { get room() { return room; }, openRoom, get race() { return race; }, get state() { return state; }, startRace, show, pad1, pad2, S, setQuality };
+window.__game = { get room() { return room; }, openRoom, startTraining, tapHit, get tap() { return tap; }, get race() { return race; }, get state() { return state; }, startRace, show, pad1, pad2, S, setQuality };

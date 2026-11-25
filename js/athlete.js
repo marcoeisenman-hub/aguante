@@ -39,13 +39,33 @@ const KITS = [
   [0.85, 0.85, 0.86],          // blanco
 ];
 export const KIT_COUNT = KITS.length;
+// tonos de piel (multiplican el color original de la textura)
+export const SKINS = [null, [0.9, 0.8, 0.7], [0.72, 0.56, 0.44], [0.52, 0.38, 0.29], [0.38, 0.27, 0.21]];
+function skinW(r, g, b) {            // ¿es piel? cálido, algo saturado y no muy oscuro (deja afuera pelo y ojos)
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx ? (mx - mn) / mx : 0;
+  if (!(r > g && g >= b * 0.92 && sat > 0.12 && sat < 0.62 && mx > 0.32)) return 0;
+  return Math.min(1, (sat - 0.12) * 8) * Math.min(1, (mx - 0.32) * 6);
+}
+function tint(a, i, w, f) { a[i] = a[i] * (1 - w + w * f[0]); a[i + 1] = a[i + 1] * (1 - w + w * f[1]); a[i + 2] = a[i + 2] * (1 - w + w * f[2]); }
+function headTexture(sex, skin) {
+  const m = MODELS[sex], src = m.dir + m.p + '_head_color.jpg';
+  if (!SKINS[skin]) return loadTex(src, true);
+  const key = sex + '-head-' + skin; if (texCache[key]) return texCache[key];
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1024;
+  const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const img = new Image();
+  img.onload = () => { const g = canvas.getContext('2d'); g.drawImage(img, 0, 0, 1024, 1024); const d = g.getImageData(0, 0, 1024, 1024), a = d.data;
+    for (let i = 0; i < a.length; i += 4) { const w = skinW(a[i] / 255, a[i + 1] / 255, a[i + 2] / 255); if (w) tint(a, i, w, SKINS[skin]); }
+    g.putImageData(d, 0, 0); tex.needsUpdate = true; };
+  img.src = src; return (texCache[key] = tex);
+}
 
-function kitTexture(sex, kit) {
+function kitTexture(sex, kit, skin = 0) {
   const m = MODELS[sex];
-  const key = sex + '-kit-' + kit;
+  const key = sex + '-kit-' + kit + '-' + skin;
   if (texCache[key]) return texCache[key];
   const src = m.dir + m.p + '_body_color.jpg';
-  if (!KITS[kit]) return loadTex(src, true);
+  if (!KITS[kit] && !SKINS[skin]) return loadTex(src, true);
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1024;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
@@ -53,9 +73,11 @@ function kitTexture(sex, kit) {
   img.onload = () => {
     const g = canvas.getContext('2d'); g.drawImage(img, 0, 0, 1024, 1024);
     const d = g.getImageData(0, 0, 1024, 1024); const a = d.data;
-    const [kr, kg, kb] = KITS[kit];
+    const [kr, kg, kb] = KITS[kit] || [0, 0, 0];
     for (let i = 0; i < a.length; i += 4) {
       const r = a[i] / 255, gg = a[i + 1] / 255, b = a[i + 2] / 255;
+      if (SKINS[skin]) { const ws = skinW(r, gg, b); if (ws) { tint(a, i, ws, SKINS[skin]); continue; } }
+      if (!KITS[kit]) continue;
       const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), sat = mx ? (mx - mn) / mx : 0;
       let w = 0;
       if (sex === 'M') {             // camiseta azul: azul saturado
@@ -277,17 +299,18 @@ const X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new TH
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
 
 export class Athlete {
-  constructor(sex = 'M', kit = 0) {
+  constructor(sex = 'M', kit = 0, look = {}) {
     this.sex = sex;
+    const skin = look.skin | 0;
     const src = base[sex];
     this.model = skClone(src);
     const m = MODELS[sex];
-    this.model.scale.setScalar(0.01);
+    this.model.scale.setScalar(0.01 * (look.height || 1));
     this.group = new THREE.Group();
     this.group.add(this.model);
-    const body = kitTexture(sex, kit);
+    const body = kitTexture(sex, kit, skin);
     const bn = loadTex(m.dir + m.p + '_body_normal.jpg', false);
-    const hc = loadTex(m.dir + m.p + '_head_color.jpg', true), hn = loadTex(m.dir + m.p + '_head_normal.jpg', false);
+    const hc = headTexture(sex, skin), hn = loadTex(m.dir + m.p + '_head_normal.jpg', false);
     this.model.traverse(o => {
       if (!o.isMesh) return;
       o.castShadow = true; o.receiveShadow = false; o.frustumCulled = false;

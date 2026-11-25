@@ -140,3 +140,18 @@ export function fmt(t, dec = false) {
   return (h ? h + ':' + String(m).padStart(2, '0') : String(m)) + ':' + String(s).padStart(2, '0') + d;
 }
 export function fmtPace(secPerKm) { return fmt(secPerKm) + '/km'; }
+
+// ---------- Grupos de edad (como en la competencia) ----------
+// Singles: 16–24, 25–29, … de 5 en 5 hasta 70+. Doubles/Relay: 16–29, 30–39, … de 10 en 10 hasta 70+.
+export function ageGroup(format, age) {
+  age = Math.max(16, age | 0);
+  if (format === 'singles') { if (age < 25) return '16–24'; if (age >= 70) return '70+'; const b = Math.floor(age / 5) * 5; return `${b}–${b + 4}`; }
+  if (age < 30) return '16–29'; if (age >= 70) return '70+'; const b = Math.floor(age / 10) * 10; return `${b}–${b + 9}`;
+}
+// rendimiento relativo por edad (1 = mejor momento, entre los 25 y 34)
+export function ageFactor(age) {
+  const T = [[16, 0.95], [20, 0.985], [25, 1], [34, 1], [40, 0.975], [45, 0.95], [50, 0.92], [55, 0.885], [60, 0.85], [65, 0.81], [70, 0.77], [80, 0.68]];
+  age = Math.max(16, Math.min(85, age));
+  for (let i = 1; i < T.length; i++) if (age <= T[i][0]) { const [a0, f0] = T[i - 1], [a1, f1] = T[i]; return f0 + (f1 - f0) * (age - a0) / (a1 - a0); }
+  return 0.66;
+}

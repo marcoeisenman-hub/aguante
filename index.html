@@ -29,6 +29,8 @@
     <p class="tag">Fitness racing · 8 × 1 km · 8 estaciones · reglas y pesos oficiales</p>
     <div class="menu">
       <button class="btn primary" data-go="setup">Correr una carrera</button>
+      <button class="btn" data-go="train">Entrenar a mi atleta</button>
+      <button class="btn" data-go="editor">Mi personaje</button>
       <button class="btn" data-go="online">Online con amigos</button>
       <button class="btn" data-go="practice">Practicar una estación</button>
       <button class="btn" data-go="howto">Cómo se juega</button>
@@ -71,12 +73,62 @@
         <p class="rec" id="divRec"></p>
         <h4>Atleta</h4>
         <div class="row"><input id="pName" maxlength="16" placeholder="Tu nombre"><select id="pCountry"></select><input id="pAge" type="number" min="16" max="89" value="16" title="Edad (mínimo 16 en la competencia)"></div>
+        <p class="note" id="pAgeG"></p>
+        <button class="btn" data-go="editor" style="margin:6px 0 4px">Editar mi personaje</button>
         <h4>Camiseta</h4>
         <div class="kits" id="kits"></div>
+        <label class="chk"><input type="checkbox" id="pProf" checked> Correr con mi atleta entrenado (nivel <b id="pProfOvr">40</b>)</label>
         <label class="chk"><input type="checkbox" id="pGhost" checked> Correr contra papá: repite su carrera real de Tampa 2026 (1:33:20)</label>
       </div>
     </div>
     <div class="pfoot"><button class="btn primary" id="goRace">A la línea de salida</button></div>
+  </div>
+</div>
+
+<!-- Editor de personaje -->
+<div id="editor" class="screen left">
+  <div class="panel narrow ed">
+    <div class="phead"><button class="back" id="eDone">←</button><h2>Mi personaje</h2></div>
+    <h4>Nombre</h4><input id="eName" maxlength="16" placeholder="Tu nombre">
+    <h4>Personaje</h4><div class="seg" id="eSex"><button data-v="M">Hombre</button><button data-v="F">Mujer</button></div>
+    <h4>Camiseta</h4><div class="kits" id="eKits"></div>
+    <h4>Piel</h4><div class="kits" id="eSkin"></div>
+    <h4>Altura</h4><div class="seg" id="eHeight"></div>
+    <p class="note">En Singles el personaje define si corres Men o Women. Se guarda solo.</p>
+  </div>
+</div>
+
+<!-- Entrenar -->
+<div id="train" class="screen">
+  <div class="panel wide scroll">
+    <div class="phead"><button class="back" data-go="home">←</button><h2>Entrenar a mi atleta</h2></div>
+    <div class="cols">
+      <div>
+        <div class="tcard">
+          <div class="tovr"><b id="tOvr">40</b><span>NIVEL</span></div>
+          <div class="tmeta">Día <b id="tDay">1</b> · <b id="tSes">0</b> entrenos · <b id="tRaces">0</b> carreras</div>
+        </div>
+        <div id="tStats" class="tstats"></div>
+        <div class="meter tfat"><span>FATIGA</span><div class="mbar"><i id="tFat"></i></div><b id="tFatN">0%</b></div>
+        <p class="note" id="tFatNote"></p>
+        <h4>Historial</h4>
+        <div id="tLog" class="tlog"></div>
+        <button class="btn" id="tReset" style="margin-top:10px">Empezar de cero</button>
+      </div>
+      <div>
+        <h4>Entrenamientos</h4>
+        <p class="note">Cada uno es un día. Hazlo bien en el mini-juego y sube más. Si te cansas mucho, rindes menos: descansa.</p>
+        <div class="grid8" id="tList"></div>
+      </div>
+    </div>
+  </div>
+  <div id="tapBox" class="tapbox" hidden>
+    <button class="back" id="tapClose">×</button>
+    <h3 id="tapName"></h3>
+    <p class="note" id="tapTip"></p>
+    <div class="tapbar"><div id="tapZone" class="g-zone"></div><div id="tapNeedle" class="g-needle"></div></div>
+    <div id="tapReps" class="tapreps"></div>
+    <p class="note">ESPACIO o toca la pantalla</p>
   </div>
 </div>
 
@@ -121,14 +173,14 @@
   <div class="panel wide scroll">
     <div class="phead"><button class="back" data-go="home">←</button><h2>Cómo se juega</h2></div>
     <div class="how">
-      <div><h4>Correr (8 × 1 km)</h4><p><b>↑ ↓</b> cambian el ritmo (Suave → Sprint). <b>← →</b> para moverte de carril. Cada km son <b>2 vueltas</b>. Para entrar a la Roxzone pégate a la izquierda (lado interior) en la entrada <b>ROXZONE IN</b> en la última vuelta. Si entras antes te falta una vuelta: <b>+7 min</b>. Si te pasas, das otra vuelta.</p><p>La energía es todo: Fuerte y Sprint la gastan rápido, Suave y Cómodo la recuperan. Con poca energía todo sale más lento. Después de los trineos y las zancadas las piernas pesan.</p></div>
+      <div><h4>Correr (8 × 1 km)</h4><p><b>↑ ↓</b> cambian el ritmo (Suave → Sprint). <b>← →</b> cambian de carril (hay 4). Cada km son <b>2 vueltas</b>. Para entrar a la Roxzone pásate al carril 1 (el de la izquierda) en la entrada <b>ROXZONE IN</b> en la última vuelta. Si entras antes te falta una vuelta: <b>+7 min</b>. Si te pasas, das otra vuelta.</p><p>La energía es todo: Fuerte y Sprint la gastan rápido, Suave y Cómodo la recuperan. Con poca energía todo sale más lento. Después de los trineos y las zancadas las piernas pesan.</p></div>
       <div><h4>Roxzone</h4><p>Se recorre sola. Mantén <b>↑</b> para ir más rápido (gasta energía). Cuenta en tu tiempo como en la carrera de verdad.</p></div>
-      <div><h4>SkiErg · Row</h4><p>Mantén <b>ESPACIO</b> para el jalón y suelta cuando la aguja está en la franja verde. Deja que vuelvan las manos o el asiento antes del siguiente.</p></div>
-      <div><h4>Sled Push · Sled Pull</h4><p>Alterna <b>← →</b> rápido y parejo. Si repites la misma tecla pierdes fuerza; si se para el trineo, cuesta arrancarlo. 4 carriles de 12,5 m.</p></div>
+      <div><h4>SkiErg · Row</h4><p>Igual que los trineos: aprieta <b>← →</b> o <b>ESPACIO</b> lo más rápido que puedas. Con <b>↑ ↓</b> cambias el <b>damper</b> (1–10) como en la máquina real: alto = cada jalón rinde más pero cansa más.</p></div>
+      <div><h4>Sled Push</h4><p>Aprieta <b>← →</b> o <b>ESPACIO</b> lo más rápido que puedas. Si se para el trineo, cuesta arrancarlo. 4 carriles de 12,5 m.</p></div><div><h4>Sled Pull</h4><p>Aprieta <b>← →</b> o <b>ESPACIO</b> lo más rápido que puedas (cada toque es un jalón). Al pasar los 12,5 m corres al otro lado.</p></div>
       <div><h4>Burpee Broad Jump</h4><p><b>↓</b> pecho al piso, <b>↑</b> arriba, <b>ESPACIO</b> carga y suelta en verde. Si te pasas de fuerza caes con los pies desparejos: no-rep.</p></div>
       <div><h4>Farmers Carry</h4><p>Alterna <b>← →</b> para caminar. El agarre se gasta: suelta las pesas con <b>ESPACIO</b> para recuperarlo (está permitido) antes de que se te caigan.</p></div>
       <div><h4>Sandbag Lunges</h4><p>Mantén <b>←</b> hasta que la rodilla toque el piso y suelta; luego <b>→</b>. Si sueltas antes: no-rep.</p></div>
-      <div><h4>Wall Balls</h4><p>Mantén <b>ESPACIO</b>: baja a la sentadilla; abajo la barra de fuerza sube y baja. Suelta en la franja para pegarle al blanco (2,70 m mujeres / 3,00 m hombres).</p></div>
+      <div><h4>Wall Balls</h4><p>Cada toque de <b>ESPACIO</b> es una sentadilla y un lanzamiento al blanco (2,70 m mujeres / 3,00 m hombres). Toca justo cuando atrapas la pelota para encadenar sin pausas.</p></div>
       <div><h4>Doubles</h4><p>Corren juntos (no se separen más de 10 s: +1 min). En las estaciones pulsa <b>E</b> para cambiar con tu pareja; el que descansa recupera energía. Con Jugador 2: J1 usa <b>WASD + ESPACIO + E</b>, J2 usa <b>flechas + ENTER + SHIFT derecho</b>.</p></div>
       <div><h4>Relay</h4><p>Equipo de 4: cada uno hace 2 × (1 km + estación) y le da el relevo al siguiente en la Roxzone.</p></div>
       <div><h4>Penalizaciones (reglamento)</h4><p>No-rep: la 1.ª es aviso, desde la 2.ª +15 s (estaciones 1–7). Vuelta que falta: +7 min. Pareja separada: +1 min.</p></div>
@@ -152,6 +204,7 @@
   <div class="strip" id="strip"></div>
   <div class="tl">
     <div class="clock" id="hClock">0:00</div>
+    <div class="hpen" id="hPenL"></div>
     <div class="segn" id="hSeg">Run 1</div>
     <div class="div" id="hDiv"></div>
   </div>
@@ -197,7 +250,7 @@
 <div id="results" class="screen dim">
   <div class="panel wide scroll">
     <div class="rhead">
-      <div><div class="rlabel" id="rDiv"></div><div class="rtime" id="rTime"></div><div class="rpos" id="rPos"></div></div>
+      <div><div class="rlabel" id="rDiv"></div><div class="rtime" id="rTime"></div><div class="hpen" id="rPenL"></div><div class="rpos" id="rPos"></div></div>
       <div class="rbadges" id="rBadges"></div>
     </div>
     <div class="cols">
