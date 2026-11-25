@@ -549,7 +549,7 @@ export class Race {
     me.worker = me.worker ? 0 : 1;
     const m = me.members[me.worker];
     const c = new CTRL[st.id](this, m, st.id, m.load, me.lane);
-    for (const k of ['done', 'x', 'laneN', 'dirn', 'side', 'next', 'faults', 'grip']) if (k in old) c[k] = old[k];
+    for (const k of ['done', 'x', 'laneN', 'dirn', 'side', 'next', 'faults', 'pens', 'grip']) if (k in old) c[k] = old[k];
     if ('down' in old) { c.down = true; }
     old.dispose?.();
     me.ctl = c;

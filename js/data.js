@@ -72,18 +72,21 @@ export const SPLITS = {
   },
 };
 // Récords (fuentes: Red Bull, Roxlyfe, Hyranking — no hay lista oficial)
+// Mejores tiempos de la historia según los resultados oficiales de HYROX (actualizado nov. 2026)
 export const RECORDS = {
-  'Men Pro': ['51:59', 'Alexander Rončević · Varsovia 2026'],
-  'Women Pro': ['54:25', 'Joanna Wietrzyk · Varsovia 2026'],
-  'Men Open': ['50:38', 'Alexander Rončević · Colonia 2024'],
-  'Women Open': ['55:38', 'Lauren Weeks · Washington DC 2025'],
-  'Doubles Men Pro': ['47:40', 'Rončević / Wenisch · Londres 2026'],
-  'Doubles Men': ['47:57', 'Williamson / Eisenlauer · Berlín 2025'],
-  'Doubles Women': ['53:21', 'Martin / Sheridan · 2026'],
-  'Doubles Mixed': ['49:13', 'Learn / Fkiaras · Melbourne 2025'],
-  'Relay Men': ['45:43', 'Londres 2025'],
-  'Relay Women': ['51:26', 'Londres 2025'],
-  'Relay Mixed': ['46:47', 'Varsovia 2026'],
+  'Men Open': ['50:38', 'Alexander Rončević · Colonia, abr. 2024'],
+  'Women Open': ['55:38', 'Lauren Weeks · Washington D.C., mar. 2025'],
+  'Men Pro': ['51:59', 'Alexander Rončević · Varsovia, abr. 2026'],
+  'Women Pro': ['54:25', 'Joanna Wietrzyk · Varsovia, abr. 2026'],
+  'Doubles Men': ['47:57', 'Jake Williamson / Fabian Eisenlauer · Berlín, may. 2025'],
+  'Doubles Women': ['53:21', 'Meg Martin / Calypso Sheridan · Brisbane, abr. 2026'],
+  'Doubles Mixed': ['49:13', 'Cole Learn / Mollie Fkiaras · Melbourne, dic. 2025'],
+  'Doubles Men Pro': ['47:40', 'Tim Wenisch / Alexander Rončević · Londres, mar. 2026'],
+  'Doubles Women Pro': ['52:11', 'Lauren Weeks / Vivian Tafuto · Varsovia, abr. 2026'],
+  'Doubles Mixed Pro': ['53:08', 'Jennifer Nikolaus / Fabian Eisenlauer · Niza (Mundial), jun. 2024'],
+  'Relay Men': ['45:43', 'Woods / Olsen / Røssland / White · Londres, dic. 2025'],
+  'Relay Women': ['51:26', 'Hill / Stockley / Geddes / Falconer · Londres, dic. 2025'],
+  'Relay Mixed': ['46:47', 'Ifversen / Bent / Wietrzyk / Botterill · Varsovia, abr. 2026'],
 };
 
 // Distribución de tiempos finales del campo (minutos): [mejor, mediana, peor]

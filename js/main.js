@@ -167,7 +167,7 @@ function renderSetup() {
     ['Sandbag Lunges', col(l => l.sandbag + ' kg') + ' · 100 m'], ['Wall Balls', col(l => l.ball + ' kg') + ' · 100 reps · ' + col((l, s) => (l.target ?? (s === 'F' ? 2.7 : 3)).toFixed(2).replace('.', ',') + ' m')],
   ];
   $('#loads').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}. ${r[0]}</td><td>${r[1]}</td></tr>`).join('');
-  const recKey = d.format === 'singles' ? `${S.cat === 'W' ? 'Women' : 'Men'} ${S.level === 'open' ? 'Open' : 'Pro'}` : d.format === 'doubles' ? `Doubles ${S.cat === 'W' ? 'Women' : S.cat === 'M' ? 'Men' : 'Mixed'}${d.pro && S.cat === 'M' ? ' Pro' : ''}` : `Relay ${S.cat === 'W' ? 'Women' : S.cat === 'M' ? 'Men' : 'Mixed'}`;
+  const recKey = d.format === 'singles' ? `${S.cat === 'W' ? 'Women' : 'Men'} ${S.level === 'open' ? 'Open' : 'Pro'}` : d.format === 'doubles' ? `Doubles ${S.cat === 'W' ? 'Women' : S.cat === 'M' ? 'Men' : 'Mixed'}${d.pro ? ' Pro' : ''}` : `Relay ${S.cat === 'W' ? 'Women' : S.cat === 'M' ? 'Men' : 'Mixed'}`;
   const r = RECORDS[recKey];
   const mine = store.get('aguanteRecords', {})[d.name];
   $('#divRec').innerHTML = (r ? `Récord mundial: <b>${r[0]}</b> · ${r[1]}` : '') + (mine ? `<br>Tu mejor: <b>${fmt(mine.best)}</b>` : '');

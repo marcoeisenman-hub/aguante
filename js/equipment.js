@@ -17,7 +17,7 @@ export function initMaterials(tex) {
   MAT.kb = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.45, metalness: 0.55 });
   MAT.bag = new THREE.MeshStandardMaterial({ color: 0x222325, roughness: 0.92, normalMap: tex.carpetN, normalScale: new THREE.Vector2(0.6, 0.6) });
   MAT.ball = new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.75, normalMap: tex.carpetN, normalScale: new THREE.Vector2(0.3, 0.3) });
-  MAT.rope = new THREE.MeshStandardMaterial({ color: 0x2b2b2e, roughness: 0.9 });
+  MAT.rope = new THREE.MeshStandardMaterial({ color: 0xbfa67c, roughness: 0.85, emissive: 0x2a2216, emissiveIntensity: 0.5 });
   MAT.wood = new THREE.MeshStandardMaterial({ color: 0x3a3330, roughness: 0.7 });
   MAT.white = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.6 });
 }
@@ -50,6 +50,7 @@ export class Cable {
       this.pts[i].lerpVectors(a, b, t);
       this.pts[i].y -= Math.sin(t * Math.PI) * sag;
     }
+    this.curve.needsUpdate = true; this.curve.updateArcLengths();   // si no, el tubo usa los largos viejos (queda en un punto)
     const g = new THREE.TubeGeometry(this.curve, this.seg, this.r, 5);
     this.mesh.geometry.dispose(); this.mesh.geometry = g;
   }

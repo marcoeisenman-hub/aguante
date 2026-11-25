@@ -80,8 +80,11 @@ class Ski extends Station {
     if (this.state === 'ready' || this.state === 'rec') {
       if (this.state === 'rec') { this.rec += dt; this.ph = lerp(0.45, 1, clamp(this.rec / 0.5, 0, 1)); if (this.rec >= 0.5) this.state = 'ready'; }
       if (I.pressed('A')) {
-        const early = this.state === 'rec' ? clamp(1 - this.rec / 0.5, 0, 1) : 0;   // jalar antes de que suban las manos: jalón corto
-        this.state = 'drive'; this.hold = 0; this.early = early; this.race.sfx('stroke', { power: 0.6 });
+        if (this.state === 'rec' && this.rec < 0.3) { if (!this._wf || this.t - this._wf > 1) { this._wf = this.t; this.race.flash('Espera que suban las manos', 'meh', 0.9); } }
+        else {
+          const early = this.state === 'rec' ? clamp(1 - this.rec / 0.5, 0, 1) : 0;   // jalar antes de que suban del todo: jalón corto
+          this.state = 'drive'; this.hold = 0; this.early = early; this.race.sfx('stroke', { power: 0.6 });
+        }
       }
     }
     if (this.state === 'drive') {
@@ -89,7 +92,7 @@ class Ski extends Station {
       this.ph = clamp(this.hold / win, 0, 1) * 0.43;
       if (I.released('A') || this.hold > win * 1.8) {
         const err = Math.abs(this.hold - win) / win;
-        let q = clamp(1 - err * 1.6, 0.25, 1) * (1 - this.early * 0.5);
+        let q = this.hold < win * 0.45 ? 0.08 : clamp(1 - err * 1.6, 0.25, 1) * (1 - this.early * 0.5);
         if (this.hold > win * 1.8) q = 0.35;
         const m = this.per * q * this.ef;
         this.add(m);
@@ -143,7 +146,8 @@ class Row extends Station {
     const win = 0.5 - (1 - this.ef) * 0.08;
     if (this.state === 'rec' || this.state === 'ready') {
       if (this.state === 'rec') { this.rec += dt; this.ph = lerp(0.35, 1, clamp(this.rec / 0.75, 0, 1)); if (this.rec >= 0.75) { this.state = 'ready'; this.ph = 0; } }
-      if (I.pressed('A')) {
+      if (I.pressed('A') && this.state === 'rec' && this.rec < 0.4) { if (!this._wf || this.t - this._wf > 1) { this._wf = this.t; this.race.flash('Espera que vuelva el asiento', 'meh', 0.9); } }
+      else if (I.pressed('A')) {
         this.rush = this.state === 'rec' ? clamp(1 - this.rec / 0.75, 0, 1) : 0;
         if (this.rush > 0.3) this.race.flash('Recuperación muy rápida', 'meh');
         this.state = 'drive'; this.hold = 0; this.race.sfx('stroke', { power: 0.7 });
@@ -154,7 +158,7 @@ class Row extends Station {
       this.ph = clamp(this.hold / win, 0, 1) * 0.35;
       if (I.released('A') || this.hold > win * 1.8) {
         const err = Math.abs(this.hold - win) / win;
-        let q = clamp(1 - err * 1.5, 0.25, 1) * (1 - this.rush * 0.45);
+        let q = this.hold < win * 0.45 ? 0.08 : clamp(1 - err * 1.5, 0.25, 1) * (1 - this.rush * 0.45);
         if (this.hold > win * 1.8) q = 0.35;
         const m = this.per * q * this.ef;
         this.add(m);
@@ -221,7 +225,7 @@ class Push extends Station {
       const gap = this.t - this.lastT;
       if (!good) { this.v *= 0.92; this.race.flash('Alterna las piernas', 'meh'); }
       else {
-        let q = gap > 0.12 ? 1 : 0.55;                                  // demasiado rápido = patina
+        let q = cadQ(gap, 0.2, this);                                          // demasiado rápido = patina
         if (this.v < 0.15) q *= 0.55;                                  // arrancar desde parado cuesta
         this.v += this.imp * q * this.lf * this.ef;
         this.spend(0.085 * this.lf ** -0.5);
@@ -275,7 +279,7 @@ class Pull extends Station {
     this.vt = 50 / (this.ref * 0.82);
     this.c1 = 0.9; this.c0 = 0.4 * this.vt; this.imp = (this.c0 + this.c1 * this.vt) / 4.2;
     this.rope = null;
-    this.rope = new (this.race.Cable)(0.012, this.race.MAT.rope, 16, 0.08);
+    this.rope = new (this.race.Cable)(0.017, this.race.MAT.rope, 16, 0.08);
     this.race.world.scene.add(this.rope.mesh);
   }
   ends() { const a = this.L.pos.x - 0.4, b = this.L.pos.x + 12.5 + 0.4; return this.side ? [b, a] : [a, b]; }   // [donde está el atleta, donde arranca el trineo]
@@ -296,7 +300,7 @@ class Pull extends Station {
       if (k === this.lastKey) { this.race.flash('Mano sobre mano: alterna', 'meh'); this.v *= 0.9; }
       else {
         const gap = this.t - this.lastT;
-        let q = gap > 0.12 ? 1 : 0.5; if (this.v < 0.12) q *= 0.6;
+        let q = cadQ(gap, 0.2, this); if (this.v < 0.12) q *= 0.6;
         this.v += this.imp * q * this.lf * this.ef;
         this.spend(0.08 * this.lf ** -0.5);
         this.race.sfx('rope');
@@ -309,7 +313,7 @@ class Pull extends Station {
     const dx = this.v * dt; this.x += dx; this.add(dx);
     this.ph2 = lerp(this.ph2 ?? 0, this.ph, 0.25);
     this.av.set('pull', this.ph2, {});
-    place(this.av, _v.set(ax - dir * 0.3, 0, this.L.pos.z), _w.set(-dir, 0, 0));
+    place(this.av, _v.set(ax - dir * 0.3, 0, this.L.pos.z), _w.set(dir, 0, 0));   // mirando al trineo
     this.race.loop('sled', 0.5, this.v / this.vt);
     if (this.x >= 12.5 && !this.finished) {
       this.x = 0; this.laneN++; this.prevA = ax; this.side ^= 1; this.walk = 1.5; this.good(`Carril ${this.laneN}/4`);
@@ -326,12 +330,16 @@ class Pull extends Station {
     this.av.update(0);
     const h = this.av.handPos('L', new THREE.Vector3()).add(this.av.handPos('R', new THREE.Vector3())).multiplyScalar(0.5);
     const ring = this.sled.localToWorld(this.sled.userData.ring.clone());
-    this.rope.set(h, ring, this.v > 0.2 ? 0.02 : 0.18);
+    this.rope.set(h, ring, this.v > 0.2 ? 0.06 : 0.25);
   }
   dispose() { this.race.world.scene.remove(this.rope.mesh); }
   hud() { return { gauge: gauge('speed', { val: clamp(this.v / (this.vt * 1.4), 0, 1), zone: [0.6, 0.85], label: 'TIRÓN' }), big: this.done.toFixed(1) + ' m', sub: `Carril ${Math.min(4, this.laneN + 1)}/4 · ${this.load.pull} kg` }; }
   hints() { return [['← →', 'mano sobre mano, alterna']]; }
-  cam() { const [ax] = this.ends(); return { pos: _v.set(ax + (this.side ? 3 : -3), 2.1, this.L.pos.z + 4 * (this.L.pos.z < 0 ? 1 : -1)), look: _w.set(this.L.pos.x + 6.25, 0.5, this.L.pos.z) }; }
+  cam() {
+    const [ax, bx] = this.ends(), dir = Math.sign(bx - ax), zs = this.L.pos.z < 0 ? 1 : -1;
+    if (this.walk > 0) { const x = this.av.group.position.x; return { pos: _v.set(x - 1.5, 2.3, this.L.pos.z + 4.2 * zs), look: _w.set(x, 0.8, this.L.pos.z) }; }
+    return { pos: _v.set(ax - dir * 3.0, 2.2, this.L.pos.z + 2.4 * zs), look: _w.set(ax + dir * 5, 0.6, this.L.pos.z) };
+  }
 }
 
 // =====================================================================
@@ -348,7 +356,7 @@ class BBJ extends Station {
     this.t += dt;
     const s = this.stage;
     const ef = this.ef;
-    if (s === 'stand' && I.pressed('D')) { this.stage = 'down'; this.timer = 0; this.wantUp = false; }
+    if (s === 'stand' && I.pressed('D')) { this.stage = 'down'; this.timer = 0; this.wantUp = I.pressed('U'); }
     else if (s === 'stand' && (I.pressed('A') || I.pressed('U'))) { this.race.flash('Primero ↓: pecho al piso', 'meh', 1); }
     else if (s === 'down') {
       this.timer += dt; this.ph = lerp(0, 0.4, clamp(this.timer / (0.32 / ef ** 0.5), 0, 1));
@@ -420,7 +428,7 @@ class Farmers extends Station {
       if (I.pressed('A')) { this.down = true; this.v = 0; this.race.sfx('kbDrop'); }
       for (const k of ['L', 'R']) if (I.pressed(k) && this.pick <= 0) {
         if (k === this.lastKey) this.v *= 0.9;
-        else { const gap = this.t - this.lastT; this.v += this.imp * (gap > 0.13 ? 1 : 0.6) * this.ef; this.spend(0.05 / this.lf); this.race.sfx('step'); }
+        else { const gap = this.t - this.lastT; this.v += this.imp * cadQ(gap, 0.24, this) * this.ef; this.spend(0.05 / this.lf); this.race.sfx('step'); }
         this.lastKey = k; this.lastT = this.t;
       }
       this.v = Math.max(0, this.v - (this.c0 + this.c1 * this.v) * dt);
@@ -585,6 +593,9 @@ class WallBalls extends Station {
 
 export const CTRL = { ski: Ski, push: Push, pull: Pull, bbj: BBJ, row: Row, farmers: Farmers, lunges: Lunges, wb: WallBalls };
 
+// calidad del paso según la cadencia: el ritmo ideal da 1; aplastar teclas rinde menos
+function cadQ(gap, ideal, st) { if (st && gap < ideal * 0.6 && (!st._sp || st.t - st._sp > 1.5)) { st._sp = st.t; st.race.flash('Muy rápido: pasos firmes, no aplastes', 'meh', 1.1); } if (gap >= ideal) return 1; if (gap <= ideal * 0.55) return 0.12; return lerp(0.3, 1, (gap - ideal * 0.55) / (ideal * 0.45)); }
+
 function fmtS(s) { if (!isFinite(s) || s <= 0) return '--:--'; const m = Math.floor(s / 60), x = Math.floor(s % 60); return m + ':' + String(x).padStart(2, '0'); }
 
 // =====================================================================
@@ -629,7 +640,7 @@ export function aiStation(world, av, id, lane, f, t, rate = 1) {
       if (pullPart) {
         const k = x / (12.5 * 0.85);
         s.position.set(bx - dir * k * 12.5, 0, L.pos.z); s.rotation.y = -dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-        av.group.position.set(ax - dir * 0.3, 0, L.pos.z); av.group.rotation.y = Math.atan2(-dir, 0);
+        av.group.position.set(ax - dir * 0.3, 0, L.pos.z); av.group.rotation.y = Math.atan2(dir, 0);
         av.set('pull', cyc(1.6), {});
       } else {
         const k = (x / 12.5 - 0.85) / 0.15;

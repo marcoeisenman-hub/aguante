@@ -181,11 +181,12 @@ const SKI = [
 ];
 // --- Remo: 0 = catch (adelante), 0.35 = final del jalón ---
 const ROW = [
-  [0, { rootpitch: 28, hipL: 120, hipR: 120, kneeL: 128, kneeR: 128, ankleL: 22, ankleR: 22, shLflex: 82, shRflex: 82, shLabd: 10, shRabd: 10, elL: 4, elR: 4, grip: 1, headpitch: -25 }],
-  [0.13, { rootpitch: 18, hipL: 100, hipR: 100, kneeL: 70, kneeR: 70, ankleL: 0, ankleR: 0, shLflex: 72, shRflex: 72, shLabd: 10, shRabd: 10, elL: 6, elR: 6, grip: 1, headpitch: -16 }],
-  [0.35, { rootpitch: -20, hipL: 98, hipR: 98, kneeL: 4, kneeR: 4, ankleL: -20, ankleR: -20, shLflex: -38, shRflex: -38, shLabd: 22, shRabd: 22, elL: 118, elR: 118, grip: 1, headpitch: 12 }],
-  [0.55, { rootpitch: -14, hipL: 96, hipR: 96, kneeL: 4, kneeR: 4, ankleL: -20, ankleR: -20, shLflex: 55, shRflex: 55, shLabd: 10, shRabd: 10, elL: 6, elR: 6, grip: 1, headpitch: 6 }],
-  [0.75, { rootpitch: 22, hipL: 108, hipR: 108, kneeL: 40, kneeR: 40, ankleL: -6, ankleR: -6, shLflex: 75, shRflex: 75, shLabd: 10, shRabd: 10, elL: 4, elR: 4, grip: 1, headpitch: -18 }],
+  // ángulos de muslo y brazo compensados por la inclinación del tronco (rootpitch): muslo_mundo = hip − rootpitch, brazo_mundo = sh − rootpitch
+  [0, { rootpitch: 26, hipL: 156, hipR: 156, kneeL: 134, kneeR: 134, ankleL: 30, ankleR: 30, shLflex: 104, shRflex: 104, shLabd: 6, shRabd: 6, elL: 4, elR: 4, grip: 1, headpitch: -22 }],
+  [0.13, { rootpitch: 20, hipL: 132, hipR: 132, kneeL: 96, kneeR: 96, ankleL: 18, ankleR: 18, shLflex: 100, shRflex: 100, shLabd: 6, shRabd: 6, elL: 4, elR: 4, grip: 1, headpitch: -16 }],
+  [0.35, { rootpitch: -18, hipL: 62, hipR: 62, kneeL: 4, kneeR: 4, ankleL: -6, ankleR: -6, shLflex: -42, shRflex: -42, shLabd: 8, shRabd: 8, elL: 112, elR: 112, grip: 1, headpitch: 10 }],
+  [0.55, { rootpitch: -12, hipL: 70, hipR: 70, kneeL: 6, kneeR: 6, ankleL: -6, ankleR: -6, shLflex: 64, shRflex: 64, shLabd: 6, shRabd: 6, elL: 6, elR: 6, grip: 1, headpitch: 4 }],
+  [0.75, { rootpitch: 20, hipL: 118, hipR: 118, kneeL: 64, kneeR: 64, ankleL: 8, ankleR: 8, shLflex: 100, shRflex: 100, shLabd: 6, shRabd: 6, elL: 4, elR: 4, grip: 1, headpitch: -16 }],
 ];
 // --- Sled push: cuerpo inclinado, brazos estirados al trineo ---
 function pushPose(p, effort = 1) {
@@ -201,13 +202,14 @@ function pushPose(p, effort = 1) {
   };
 }
 // --- Sled pull: mano sobre mano, de pie y echado atrás ---
-function pullPose(p) {      // p: 0..1 un ciclo de dos manos
-  const s = Math.sin(p * Math.PI * 2);
+function pullPose(p) {      // p: 0 = mano izq. adelante, 0.5 = mano der. adelante (mano sobre mano)
+  const a = 0.5 + 0.5 * Math.cos(p * Math.PI * 2);          // 1: izq. estirada al frente, der. junto a la cadera
+  const L = (x, y, k) => x + (y - x) * k;
   return {
-    rootpitch: -12, rooty: -10, trunkpitch: 4, headpitch: 6,
-    hipL: 38, hipR: 14, kneeL: 38, kneeR: 12, ankleL: 16, ankleR: -2, hipLabd: 8, hipRabd: 10,
-    shLflex: 60 + s * 35, shRflex: 60 - s * 35, shLabd: 14, shRabd: 14,
-    elL: 40 - s * 35, elR: 40 + s * 35, trunkyaw: s * 8, grip: 1,
+    rootpitch: -6, trunkpitch: 14, headpitch: -4, trunkyaw: (a - 0.5) * 16,
+    hipL: 40, hipR: 26, kneeL: 46, kneeR: 30, ankleL: 8, ankleR: 4, hipLabd: 14, hipRabd: 14,
+    shLflex: L(8, 82, a), shRflex: L(8, 82, 1 - a), shLabd: 8, shRabd: 8,
+    elL: L(100, 8, a), elR: L(100, 8, 1 - a), grip: 1,
   };
 }
 // --- Burpee broad jump: 0 de pie → 0.25 manos al piso → 0.4 pecho al piso → 0.6 arriba → 0.8 salto → 1 aterriza ---
@@ -348,7 +350,9 @@ export class Athlete {
       this.rot(b['ca' + s], _q2.setFromAxisAngle(X, g('knee' + s)));
       this.rot(b['ft' + s], _q2.setFromAxisAngle(X, -g('ankle' + s)));
       // brazos
-      const abd = (P['sh' + s + 'abd'] ?? 8) - (s === 'L' ? this.armBindL : this.armBindR);
+      const fl = (P['sh' + s + 'flex'] || 0) * D;
+      // el hueso del brazo no está alineado perfecto en la pose de bind: al levantar el brazo se abría hacia afuera
+      const abd = (P['sh' + s + 'abd'] ?? 8) - 20 * Math.max(0, Math.sin(fl)) - (s === 'L' ? this.armBindL : this.armBindR);
       const sh = new THREE.Quaternion().setFromAxisAngle(X, -g('sh' + s + 'flex'))
         .multiply(_q2.setFromAxisAngle(Z, sg * abd * D));
       this.rot(b['ua' + s], sh);
