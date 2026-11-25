@@ -288,11 +288,30 @@ export class World {
     this.startArch = start;
     // cintas del pasillo (postes y cinta)
     const postM = MAT.black, tapeM = new THREE.MeshStandardMaterial({ color: 0xffe500, roughness: 0.5, emissive: 0xffe500, emissiveIntensity: 0.2 });
-    for (const z of [-2.2, 2.2]) for (let x = ROX.inX + 2; x < ROX.finishX - 2; x += 4) {
-      if (Math.abs(x - 0) < 0.1) continue;
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 1, 8), postM); p.position.set(x, 0.5, z); p.castShadow = true; s.add(p);
+    // la cinta tiene huecos donde se entra y se sale de cada estación (no se salta la cinta)
+    const gaps = { '-1': [], '1': [] };
+    for (const id of Object.keys(ST)) {
+      const st = ST[id], g = gaps[st.side];
+      if (st.kind === 'machine') { g.push([st.x0 - 0.4, st.x1 + 0.4]); continue; }
+      const L = laneOf(id, 0);
+      const xs = [L.pos.x - 0.6];
+      if (id === 'pull') xs.push(L.pos.x + 13.5);
+      if (id === 'lunges') xs.push(L.pos.x + L.len + 0.6);
+      for (const x of xs) g.push([x - 1.1, x + 1.1]);
     }
-    for (const z of [-2.2, 2.2]) { const tp = new THREE.Mesh(new THREE.BoxGeometry(ROX.finishX - ROX.inX - 4, 0.05, 0.01), tapeM); tp.position.set((ROX.finishX + ROX.inX) / 2, 0.95, z); s.add(tp); }
+    const geoP = new THREE.CylinderGeometry(0.03, 0.05, 1, 8);
+    for (const z of [-2.2, 2.2]) {
+      const g = gaps[z < 0 ? '-1' : '1'].sort((a, b) => a[0] - b[0]);
+      let x = ROX.inX + 2; const end = ROX.finishX - 2, segs = [];
+      for (const [a, b] of g) { if (a > x) segs.push([x, Math.min(a, end)]); x = Math.max(x, b); if (x >= end) break; }
+      if (x < end) segs.push([x, end]);
+      for (const [a, b] of segs) {
+        if (b - a < 0.3) continue;
+        const tp = new THREE.Mesh(new THREE.BoxGeometry(b - a, 0.05, 0.01), tapeM); tp.position.set((a + b) / 2, 0.95, z); s.add(tp);
+        const n = Math.max(1, Math.round((b - a) / 4));
+        for (let i = 0; i <= n; i++) { const p = new THREE.Mesh(geoP, postM); p.position.set(a + (b - a) * i / n, 0.5, z); p.castShadow = true; s.add(p); }
+      }
+    }
   }
   hall() {
     const s = this.scene;

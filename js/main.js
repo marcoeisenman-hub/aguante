@@ -11,6 +11,8 @@ import { Audio } from './audio.js';
 import { Room, newCode } from './online.js';
 import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace, heatRange } from './career.js';
 import { REF } from './stations.js';
+// Entrenar está apagado por ahora (Marco lo pidió el 2026-11-25); el código queda para volver a prenderlo
+const TRAINING_ON = false;
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -229,7 +231,8 @@ let editorFrom = 'setup';
 $('#eDone').onclick = () => { show(editorFrom || 'setup'); };
 for (const b of $$('[data-go=editor]')) b.addEventListener('click', () => { editorFrom = b.closest('.screen')?.id || 'setup'; }, true);
 
-const ovrTxt = v => v > 100 ? '99+' : v;   // bots por encima del máximo entrenable
+const ovrTxt = v => v > 100 ? '99+' : v;
+if (!TRAINING_ON) { document.querySelector('#home [data-go=train]')?.remove(); $('#pProfOvr').hidden = true; }   // bots por encima del máximo entrenable
 
 // ---------------- Entrenar ----------------
 function renderTrain() {
@@ -318,7 +321,7 @@ function leaveRoom() { room?.leave(); room = null; history.replaceState(null, ''
 function renderLobby() {
   if (!room) return;
   const L = room.list();
-  $('#oPlayers').innerHTML = L.map((p, i) => `<div><i style="background:${KIT_COLORS[p.kit ?? 0]}"></i>${escapeHtml(p.name || 'Atleta')}${p.id === room.me.id ? ' (tú)' : ''} <i class="ovr">${((p.ovr | 0) ? Math.max(1, Math.min(100, p.ovr | 0)) : 50)}</i><small>${i === 0 ? 'líder' : ''}</small></div>`).join('');
+  $('#oPlayers').innerHTML = L.map((p, i) => `<div><i style="background:${KIT_COLORS[p.kit ?? 0]}"></i>${escapeHtml(p.name || 'Atleta')}${p.id === room.me.id ? ' (tú)' : ''} ${TRAINING_ON ? `<i class="ovr">${((p.ovr | 0) ? Math.max(1, Math.min(100, p.ovr | 0)) : 50)}</i>` : ''}<small>${i === 0 ? 'líder' : ''}</small></div>`).join('');
   const host = room.isHost;
   const c = host ? hostCfg() : roomCfg;
   $('#oDiv').textContent = c ? divLabel(c) : 'esperando al líder…';
@@ -399,10 +402,10 @@ function startRace(practice = null, on = null, tr = null) {
   race = new Race({
     world, div: d, K: on?.K ?? K, seed: on?.seed, remotes: on?.remotes, lane: on?.lane, audio: { sfx: (n, o) => Audio.sfx(n, o), cheer: s => Audio.cheer(s), say: (t, o) => { if ($('#optVoice').checked) Audio.say(t, o); } },
     level: S.heat, name: S.name || 'Tú', country: S.country, kit: S.kit, ghost: S.ghost && !(d.format === 'doubles' && S.partner === 'papa'), twoP, partner: S.partner, practice, events: onRaceEvent,
-    profile: loadProfile(), trainPart: tr?.part || 0,
+    profile: TRAINING_ON || tr ? loadProfile() : null, trainPart: tr?.part || 0,
     age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 }, mySex: S.cat === 'X' ? (S.edSex || 'M') : null,
   });
-  race.me.age = S.age; race.usedProfile = !practice && !tr;
+  race.me.age = S.age; race.usedProfile = TRAINING_ON && !practice && !tr;
   if (on) race.countdown += (on.wait || 0) / 1000;
   hudInit();
   show(null); $('#hud').hidden = false; $('#touch').hidden = !isTouch;
@@ -541,10 +544,10 @@ function showCard() {
     ski: 'Aprieta ← → o ESPACIO lo más rápido que puedas. ↑ ↓ cambia el damper: alto rinde más por jalón pero cansa más.',
     push: 'Aprieta ← → o ESPACIO lo más rápido que puedas. No dejes que se pare: arrancarlo de nuevo cuesta.',
     pull: 'Aprieta ← → o ESPACIO lo más rápido que puedas: cada toque es un jalón. Al pasar los 12,5 m corres al otro lado.',
-    bbj: '↓ pecho al piso, ↑ arriba, ESPACIO carga el salto y suelta en verde.',
+    bbj: 'Cada toque de ESPACIO = un burpee y un salto (~2 m). Toca justo al caer para encadenar. 80 m = 4 carriles de 20 m.',
     row: 'Aprieta ← → o ESPACIO lo más rápido que puedas. ↑ ↓ cambia el damper: alto rinde más por jalón pero cansa más.',
-    farmers: 'Alterna ← →. Si el agarre se acaba, se caen: suéltalas antes con ESPACIO.',
-    lunges: 'Mantén ← hasta que la rodilla toque, suelta; luego →. Siempre alternando.',
+    farmers: 'Mantén → para caminar. Si el agarre se acaba se caen: suéltalas antes con ESPACIO. 200 m = 10 carriles de 20 m.',
+    lunges: 'Cada toque de ESPACIO = una zancada (~1,2 m). Toca al subir para encadenar. 100 m = 5 carriles de 20 m.',
     wb: 'Cada toque de ESPACIO = sentadilla y lanzamiento. Toca justo cuando atrapas la pelota para ir sin pausas.',
   }[st.id];
   $('#hCard').innerHTML = `<div class="n">ESTACIÓN ${idx + 1} DE 8</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${how}</p>`;

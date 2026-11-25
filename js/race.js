@@ -12,7 +12,7 @@ import { Autopilot } from './auto.js';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const RUNVIS = LAPS_PER_KM * TRACK.P - 9;                 // metros visuales de un "km"
-export const RUN_LANES = [-1.7, -0.6, 0.5, 1.6];
+export const RUN_LANES = [-1.65, -0.6, 0.45, 1.45];
 const GEARS = [
   { name: 'SUAVE', mul: 0.74, drain: -0.12 },
   { name: 'CÓMODO', mul: 0.86, drain: -0.05 },
@@ -104,7 +104,7 @@ export class Race {
       pm.pow = {}; STATIONS.forEach((st, i) => pm.pow[st.id] = Math.min(1, (REF.M[st.id] / PAPA.seg[2 * i + 1]) * 1.1));
     }
     if (o.profile) applyProfile(me.members[0], o.profile);   // tu atleta entrenado
-    me.ovr = o.profile ? overall(o.profile) : 50;
+    if (o.profile) me.ovr = overall(o.profile);
     if (this.ageK !== 1) for (const m of me.members) { if (m.papa) continue; m.ageK = this.ageK; }
     this.look = o.look || {};
     this.trainPart = o.trainPart || 0;
@@ -118,7 +118,7 @@ export class Race {
     const usedLanes = new Set([me.lane]);
     this.remotes = new Map();
     remotes.forEach((r, i) => {
-      const e = { id: 200 + i, isPlayer: false, isRemote: true, rid: r.id, name: r.name || 'Amigo', ovr: ((r.ovr | 0) ? Math.max(1, Math.min(100, r.ovr | 0)) : 50), country: r.country || 'PAN', lane: r.lane % LANES, kit: r.kit ?? 0, members: [], finished: false, prog: 0, label: 'Run 1' };
+      const e = { id: 200 + i, isPlayer: false, isRemote: true, rid: r.id, name: r.name || 'Amigo', ovr: o.profile && (r.ovr | 0) ? Math.max(1, Math.min(100, r.ovr | 0)) : undefined, country: r.country || 'PAN', lane: r.lane % LANES, kit: r.kit ?? 0, members: [], finished: false, prog: 0, label: 'Run 1' };
       e.members = [{ sex: div.sexes.includes(r.sex) ? r.sex : div.sexes[0], name: e.name }];   // mixtas: el personaje que eligió tu amigo
       e.members[0].av = new Athlete(e.members[0].sex, e.kit, { skin: r.skin | 0, height: Math.min(1.06, Math.max(0.94, +r.height || 1)) }); this.world.scene.add(e.members[0].av.group);
       usedLanes.add(e.lane); this.remotes.set(r.id, e); this.entries.push(e);
@@ -126,7 +126,7 @@ export class Race {
     let lane = 0;
     for (let i = 0; i < heat - 1; i++) {
       while (usedLanes.has(lane % LANES) && usedLanes.size < LANES) lane++;
-      const e = { id: i + 1, isPlayer: false, ovr: ovrs[i], lane: lane % LANES, kit: (i + 1 + (o.kit ?? 0)) % 10, country: COUNTRIES[(Math.random() * COUNTRIES.length) | 0], members: [], finished: false };
+      const e = { id: i + 1, isPlayer: false, ovr: o.profile ? ovrs[i] : undefined, lane: lane % LANES, kit: (i + 1 + (o.kit ?? 0)) % 10, country: COUNTRIES[(Math.random() * COUNTRIES.length) | 0], members: [], finished: false };
       e.members = div.sexes.map((sex, k) => ({ sex, load: div.loads[k], name: pick(sex) }));
       e.name = e.members.map(m => m.name).join(' / ');
       const sex = div.format === 'relay' ? (div.cat === 'W' ? 'F' : 'M') : (div.cat === 'W' ? 'F' : 'M');
@@ -137,7 +137,7 @@ export class Race {
       this.entries.push(e); lane++;
     }
     if (o.ghost && !this.practice) {
-      const g = { id: 99, isPlayer: false, ghost: true, lane: (me.lane + 4) % LANES, kit: 2, country: 'PAN', name: 'Papá · Tampa', ovr: ovrFor([58, 86, 125], PAPA.total / 60), members: [{ sex: 'M', name: 'Papá' }], finished: false };
+      const g = { id: 99, isPlayer: false, ghost: true, lane: (me.lane + 4) % LANES, kit: 2, country: 'PAN', name: 'Papá · Tampa', members: [{ sex: 'M', name: 'Papá' }], finished: false };
       g.segT = PAPA.seg.slice(); g.roxT = Array(16).fill(PAPA.rox); g.total = PAPA.total;
       // en otras divisiones el fantasma corre igual (su carrera real de Men Open)
       this.buildTimeline(g);
@@ -290,7 +290,7 @@ export class Race {
       const s0 = ph.i === 0 ? OUT_S + 6 - 1.5 - Math.floor(e.id / 4) * 1.4 : OUT_S;
       const s = s0 + f * (RUNVIS - (s0 - OUT_S));
       const pace = (ph.b - ph.a);                      // seg/km
-      const lat = (pace < 240 ? -1.6 : 0.4) + ((e.id * 0.618) % 1) * 1.6 - 0.8 + k * 0.7;
+      const lat = clamp((pace < 240 ? -1.2 : 0.4) + ((e.id * 0.618) % 1) * 1.4 - 0.7 + k * 0.6, -1.7, 1.45);   // siempre dentro de la pista
       const p = trackPos(s - k * 0.6, lat, av.group.position);
       const d = trackDir(s - k * 0.6);
       av.group.rotation.y = Math.atan2(d.x, d.z);

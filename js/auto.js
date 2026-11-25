@@ -22,23 +22,14 @@ export class Autopilot {
       if (this.t >= this.next) { I.tap(this.alt); this.alt = this.alt === 'L' ? 'R' : 'L'; this.next = this.t + 1 / rate * (1 + this.jitter(0.25)); }
     } else if (id === 'push' || id === 'pull' || id === 'farmers') {
       if (id === 'farmers') {
-        if (!ctl.down && ctl.grip < 0.18 + this.jitter(0.05)) { I.tap('A'); return I; }
-        if (ctl.down) { if (ctl.grip > 0.85) I.tap('A'); return I; }
+        if (!ctl.down && ctl.grip < 0.18 + this.jitter(0.05)) { I.tap('A'); I.release('R'); return I; }
+        if (ctl.down) { I.release('R'); if (ctl.grip > 0.85) I.tap('A'); return I; }
+        I.press('R'); return I;
       }
       const rate = (id === 'farmers' ? 3.6 : (id === 'push' || id === 'pull') ? 7 : 4.4) * (0.9 + this.skill * 0.12);
       if (this.t >= this.next) { I.tap(this.alt); this.alt = this.alt === 'L' ? 'R' : 'L'; this.next = this.t + 1 / rate * (1 + this.jitter(0.25)); }
-    } else if (id === 'bbj') {
-      if (this.t < this.next) return I;
-      if (ctl.stage === 'stand') { I.tap('D'); this.next = this.t + 0.05; }
-      else if (ctl.stage === 'down' && ctl.ph >= 0.4) { I.tap('U'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.1)); }
-      else if (ctl.stage === 'set') {
-        if (!I.down('A')) { I.press('A'); this.tgt = 0.88 + this.jitter(0.12); }
-        else if (ctl.charge >= Math.min(0.99, this.tgt)) I.release('A');
-      }
-    } else if (id === 'lunges') {
-      if (!ctl.leg && !ctl.rising && !I.down(ctl.next)) { if (this.t >= this.next) I.press(ctl.next); }
-      else if (ctl.leg && ctl.depth >= 1.0 + Math.max(0, this.jitter(0.02))) { I.release(ctl.leg); this.next = this.t + 0.04; }
-      for (const k of ['L', 'R']) if (I.down(k) && !ctl.leg && ctl.rising) I.release(k);
+    } else if (id === 'bbj' || id === 'lunges') {
+      if (this.t >= this.next) { I.tap('A'); this.next = this.t + 0.08 + Math.max(0, this.jitter(0.2)); }
     } else if (id === 'wb') {
       if ((ctl.state === 'ready' || ctl.state === 'catch') && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
     }
