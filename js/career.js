@@ -24,9 +24,9 @@ export const TRAININGS = [
   { id: 'descanso', name: 'Descanso y movilidad', kind: 'rest', gains: { recup: 0.6 }, fatigue: -45 },
 ];
 
-const base = () => ({ v: 1, day: 1, fatigue: 0, sessions: 0, races: 0, stats: Object.fromEntries(STATS.map(s => [s.id, 40])), log: [] });
+const base = () => ({ v: 2, day: 1, fatigue: 0, sessions: 0, races: 0, stats: Object.fromEntries(STATS.map(s => [s.id, 50])), log: [] });
 export function loadProfile() {
-  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) { for (const s of STATS) p.stats[s.id] ??= 40; return p; } } catch { }
+  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) { for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } return p; } } catch { }
   return base();
 }
 export function saveProfile(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { } }
@@ -56,13 +56,29 @@ export function train(p, t, q) {
 }
 export function afterRace(p) { p.races++; p.fatigue = Math.min(100, p.fatigue + 35); p.day++; saveProfile(p); }
 
+// ---------- Nivel de los bots: misma escala que tu atleta ----------
+// Un atleta nivel 50 que hace bien las estaciones termina cerca del punto medio entre el mejor y la mediana del campo.
+// Cada punto arriba de 50 equivale a lo que te dan las cualidades (nivel 100 ≈ 14 % más rápido).
+export function ovrFor(dist, minutes) {
+  const [best, med, worst] = dist, t50 = best + (med - best) * 0.5;
+  const x = Math.log(t50 / minutes);
+  const v = x >= 0 ? 50 + x * (50 / Math.log(1.14)) : 50 + x * (50 / Math.log(worst / t50));
+  return Math.round(Math.max(1, Math.min(99, v)));
+}
+// rango de niveles de un heat (el mismo cálculo con que se arma el heat en race.js)
+export function heatRange(dist, level, scale = null) {
+  const [best, med, worst] = dist;
+  const r = level === 'amateur' ? [med * 0.88, worst * 0.92] : level === 'elite' ? [best, best + (med - best) * 0.45] : [best + (med - best) * 0.25, med * 1.05];
+  return [ovrFor(scale || dist, r[1]), ovrFor(scale || dist, r[0])];
+}
+
 // multiplicador: 50 = normal (1.0)
 const mul = (s, lo, hi) => s < 50 ? lo + (1 - lo) * (s / 50) : 1 + (hi - 1) * ((s - 50) / 50);
 // efectos sobre un miembro del equipo en carrera
 export function applyProfile(m, p) {
   const S = p.stats, tiredK = 1 - p.fatigue / 500;
   m.prof = {
-    run: mul(S.vel, 0.95, 1.07) * tiredK,          // velocidad de carrera
+    run: mul(S.vel, 0.88, 1.12) * tiredK,          // velocidad de carrera
     drain: mul(S.motor, 1.18, 0.8),                 // gasto al correr
     regen: mul(S.recup, 0.8, 1.35),                 // recuperación
     tech: mul(S.tecnica, 1.25, 0.7),                // error de tiempo en ski/row (menos = mejor)
@@ -71,9 +87,9 @@ export function applyProfile(m, p) {
   };
   const st = (s, lo, hi) => mul(s, lo, hi) * tiredK;
   m.pow = Object.assign(m.pow || {}, {
-    ski: st((S.tecnica + S.motor) / 2, 0.94, 1.07), row: st((S.tecnica + S.motor) / 2, 0.94, 1.07),
-    push: st(S.fuerza, 0.92, 1.09), pull: st(S.fuerza, 0.92, 1.09), lunges: st((S.fuerza + S.resis) / 2, 0.93, 1.08),
-    bbj: st((S.resis + S.motor) / 2, 0.93, 1.08), wb: st(S.resis, 0.93, 1.08), farmers: st((S.agarre + S.fuerza) / 2, 0.94, 1.07),
+    ski: st((S.tecnica + S.motor) / 2, 0.87, 1.13), row: st((S.tecnica + S.motor) / 2, 0.87, 1.13),
+    push: st(S.fuerza, 0.87, 1.13), pull: st(S.fuerza, 0.87, 1.13), lunges: st((S.fuerza + S.resis) / 2, 0.87, 1.13),
+    bbj: st((S.resis + S.motor) / 2, 0.87, 1.13), wb: st(S.resis, 0.87, 1.13), farmers: st((S.agarre + S.fuerza) / 2, 0.87, 1.13),
   });
   m.energy = Math.round(100 - p.fatigue * 0.3);
 }

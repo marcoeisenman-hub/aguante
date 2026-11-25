@@ -1,5 +1,5 @@
 import { seeded } from './online.js';
-import { applyProfile } from './career.js';
+import { applyProfile, ovrFor, overall } from './career.js';
 // Motor de la carrera: reloj (K× más rápido que el real), rivales con IA, energía, Roxzone, vueltas y penalizaciones.
 import * as THREE from 'three';
 import { STATIONS, SPLITS, PAPA, NAMES, COUNTRIES, PENALTY, LAPS_PER_KM, fieldDistribution, fmt, ageFactor, ageGroup } from './data.js';
@@ -80,13 +80,14 @@ export class Race {
     const used = new Set();
     const pick = sex => { let n, tries = 0; do n = NAMES[sex][(Math.random() * NAMES[sex].length) | 0]; while (used.has(n) && ++tries < 60); used.add(n); return n; };
     // tiempos del campo
-    const totals = [];
+    const totals = [], ovrs = [];
+    const odist = div.elite ? fieldDistribution({ ...div, elite: false, pro: false }) : [best, med, worst];   // Élite se mide con la escala de Open
     for (let i = 0; i < heat - 1; i++) {
       let m;
       if (level === 'amateur') m = lerp(med * 0.88, worst * 0.92, Math.random());
       else if (level === 'elite') m = lerp(best, best + (med - best) * 0.45, Math.random());
       else m = lerp(best + (med - best) * 0.25, med * 1.05, i / Math.max(1, heat - 2) * 0.85 + Math.random() * 0.15);
-      totals.push(m * 60 / this.ageK);
+      totals.push(m * 60 / this.ageK); ovrs.push(ovrFor(odist, m));
     }
     // jugador
     const me = {
@@ -103,6 +104,7 @@ export class Race {
       pm.pow = {}; STATIONS.forEach((st, i) => pm.pow[st.id] = Math.min(1, (REF.M[st.id] / PAPA.seg[2 * i + 1]) * 1.1));
     }
     if (o.profile) applyProfile(me.members[0], o.profile);   // tu atleta entrenado
+    me.ovr = o.profile ? overall(o.profile) : 50;
     if (this.ageK !== 1) for (const m of me.members) { if (m.papa) continue; m.ageK = this.ageK; }
     this.look = o.look || {};
     this.trainPart = o.trainPart || 0;
@@ -116,7 +118,7 @@ export class Race {
     const usedLanes = new Set([me.lane]);
     this.remotes = new Map();
     remotes.forEach((r, i) => {
-      const e = { id: 200 + i, isPlayer: false, isRemote: true, rid: r.id, name: r.name || 'Amigo', country: r.country || 'PAN', lane: r.lane % LANES, kit: r.kit ?? 0, members: [], finished: false, prog: 0, label: 'Run 1' };
+      const e = { id: 200 + i, isPlayer: false, isRemote: true, rid: r.id, name: r.name || 'Amigo', ovr: Math.max(1, Math.min(99, r.ovr | 0)) || 50, country: r.country || 'PAN', lane: r.lane % LANES, kit: r.kit ?? 0, members: [], finished: false, prog: 0, label: 'Run 1' };
       e.members = [{ sex: div.sexes.includes(r.sex) ? r.sex : div.sexes[0], name: e.name }];   // mixtas: el personaje que eligió tu amigo
       e.members[0].av = new Athlete(e.members[0].sex, e.kit, { skin: r.skin | 0, height: Math.min(1.06, Math.max(0.94, +r.height || 1)) }); this.world.scene.add(e.members[0].av.group);
       usedLanes.add(e.lane); this.remotes.set(r.id, e); this.entries.push(e);
@@ -124,7 +126,7 @@ export class Race {
     let lane = 0;
     for (let i = 0; i < heat - 1; i++) {
       while (usedLanes.has(lane % LANES) && usedLanes.size < LANES) lane++;
-      const e = { id: i + 1, isPlayer: false, lane: lane % LANES, kit: (i + 1 + (o.kit ?? 0)) % 10, country: COUNTRIES[(Math.random() * COUNTRIES.length) | 0], members: [], finished: false };
+      const e = { id: i + 1, isPlayer: false, ovr: ovrs[i], lane: lane % LANES, kit: (i + 1 + (o.kit ?? 0)) % 10, country: COUNTRIES[(Math.random() * COUNTRIES.length) | 0], members: [], finished: false };
       e.members = div.sexes.map((sex, k) => ({ sex, load: div.loads[k], name: pick(sex) }));
       e.name = e.members.map(m => m.name).join(' / ');
       const sex = div.format === 'relay' ? (div.cat === 'W' ? 'F' : 'M') : (div.cat === 'W' ? 'F' : 'M');
@@ -135,7 +137,7 @@ export class Race {
       this.entries.push(e); lane++;
     }
     if (o.ghost && !this.practice) {
-      const g = { id: 99, isPlayer: false, ghost: true, lane: (me.lane + 4) % LANES, kit: 2, country: 'PAN', name: 'Papá · Tampa', members: [{ sex: 'M', name: 'Papá' }], finished: false };
+      const g = { id: 99, isPlayer: false, ghost: true, lane: (me.lane + 4) % LANES, kit: 2, country: 'PAN', name: 'Papá · Tampa', ovr: ovrFor([58, 86, 125], PAPA.total / 60), members: [{ sex: 'M', name: 'Papá' }], finished: false };
       g.segT = PAPA.seg.slice(); g.roxT = Array(16).fill(PAPA.rox); g.total = PAPA.total;
       // en otras divisiones el fantasma corre igual (su carrera real de Men Open)
       this.buildTimeline(g);

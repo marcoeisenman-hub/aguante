@@ -9,7 +9,7 @@ import { Race, GEARS, SEG_NAMES } from './race.js';
 import { division, validDivision, STATIONS, RECORDS, fmt, COUNTRIES, fieldDistribution, PAPA, LOADS, ageGroup as agOf, ageFactor } from './data.js';
 import { Audio } from './audio.js';
 import { Room, newCode } from './online.js';
-import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace } from './career.js';
+import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace, heatRange } from './career.js';
 import { REF } from './stations.js';
 
 const $ = s => document.querySelector(s);
@@ -184,12 +184,13 @@ function renderSetup() {
   $('#kits').innerHTML = KIT_COLORS.map((c, i) => `<button style="background:${c}" data-i="${i}" class="${i === S.kit ? 'on' : ''}"></button>`).join('');
   for (const b of $$('#kits button')) b.onclick = () => { S.kit = +b.dataset.i; renderSetup(); };
   const g = $('#pGhost'); g.checked = S.ghost; g.onchange = () => S.ghost = g.checked;
-  const up = $('#pProf'); up.checked = S.useProf !== false; up.onchange = () => { S.useProf = up.checked; store.set('aguanteSetup', S); }; $('#pProfOvr').textContent = overall(loadProfile());
+  { const P = loadProfile(), hr = heatRange(fieldDistribution(division(S.format, S.cat, S.level)), S.heat, division(S.format, S.cat, S.level).elite ? fieldDistribution({ ...division(S.format, S.cat, S.level), elite: false, pro: false }) : null); const o = overall(P);
+    $('#pProfOvr').innerHTML = `Tu atleta: nivel <b>${o}</b> · rivales de este heat: nivel <b>${hr[0]}–${hr[1]}</b>` + (o < hr[0] - 5 ? ' · <span style="color:var(--meh)">te cuesta: entrena o baja de heat</span>' : o > hr[1] + 5 ? ' · <span style="color:var(--good)">listo para un heat más duro</span>' : '') + (P.fatigue >= 40 ? ` · <span style="color:var(--bad)">fatiga ${Math.round(P.fatigue)}%</span>` : ''); }
   store.set('aguanteSetup', S);
 }
 $('#goRace').addEventListener('click', () => {
   initAudio(); store.set('aguanteSetup', S);
-  if (room) { room.me.name = S.name || 'Atleta'; room.me.kit = S.kit; room.me.country = S.country; room.me.skin = S.skin | 0; room.me.height = S.height || 1; room.me.sex = S.edSex || 'M'; room.hello(); if (room.isHost) room.send({ t: 'cfg', cfg: hostCfg() }); show('online'); renderLobby(); return; }
+  if (room) { room.me.name = S.name || 'Atleta'; room.me.kit = S.kit; room.me.country = S.country; room.me.skin = S.skin | 0; room.me.height = S.height || 1; room.me.sex = S.edSex || 'M'; room.me.ovr = overall(loadProfile()); room.hello(); if (room.isHost) room.send({ t: 'cfg', cfg: hostCfg() }); show('online'); renderLobby(); return; }
   startRace();
 });
 
@@ -296,7 +297,7 @@ const hostCfg = () => ({ format: S.format, cat: S.cat, level: S.level, heat: S.h
 function divLabel(c) { return division(c.format, c.cat, c.level).name; }
 function openRoom(code) {
   room?.leave();
-  room = new Room(code, { name: S.name || 'Atleta', kit: S.kit, country: S.country, skin: S.skin | 0, height: S.height || 1, sex: S.edSex || 'M', host: false });
+  room = new Room(code, { name: S.name || 'Atleta', kit: S.kit, country: S.country, skin: S.skin | 0, height: S.height || 1, sex: S.edSex || 'M', ovr: overall(loadProfile()), host: false });
   roomCfg = null;
   $('#oOff').hidden = true; $('#oOn').hidden = false;
   $('#oCodeShow').textContent = room.code;
@@ -315,7 +316,7 @@ function leaveRoom() { room?.leave(); room = null; history.replaceState(null, ''
 function renderLobby() {
   if (!room) return;
   const L = room.list();
-  $('#oPlayers').innerHTML = L.map((p, i) => `<div><i style="background:${KIT_COLORS[p.kit ?? 0]}"></i>${escapeHtml(p.name || 'Atleta')}${p.id === room.me.id ? ' (tú)' : ''}<small>${i === 0 ? 'líder' : ''}</small></div>`).join('');
+  $('#oPlayers').innerHTML = L.map((p, i) => `<div><i style="background:${KIT_COLORS[p.kit ?? 0]}"></i>${escapeHtml(p.name || 'Atleta')}${p.id === room.me.id ? ' (tú)' : ''} <i class="ovr">${Math.max(1, Math.min(99, p.ovr | 0)) || 50}</i><small>${i === 0 ? 'líder' : ''}</small></div>`).join('');
   const host = room.isHost;
   const c = host ? hostCfg() : roomCfg;
   $('#oDiv').textContent = c ? divLabel(c) : 'esperando al líder…';
@@ -335,7 +336,7 @@ $('#oEdit').onclick = () => show('setup');
 $('#oGo').onclick = () => {
   if (!room?.isHost) return;
   const L = room.list().slice(0, 8);
-  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3), skin: Math.abs(p.skin | 0) % 5, height: Math.min(1.05, Math.max(0.95, +p.height || 1)), sex: p.sex === 'F' ? 'F' : 'M' })) };
+  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3), skin: Math.abs(p.skin | 0) % 5, height: Math.min(1.05, Math.max(0.95, +p.height || 1)), sex: p.sex === 'F' ? 'F' : 'M', ovr: Math.max(1, Math.min(99, p.ovr | 0)) || 50 })) };
   room.send(m); launchOnline(m);
 };
 function launchOnline(m) {
@@ -396,10 +397,10 @@ function startRace(practice = null, on = null, tr = null) {
   race = new Race({
     world, div: d, K: on?.K ?? K, seed: on?.seed, remotes: on?.remotes, lane: on?.lane, audio: { sfx: (n, o) => Audio.sfx(n, o), cheer: s => Audio.cheer(s), say: (t, o) => { if ($('#optVoice').checked) Audio.say(t, o); } },
     level: S.heat, name: S.name || 'Tú', country: S.country, kit: S.kit, ghost: S.ghost && !(d.format === 'doubles' && S.partner === 'papa'), twoP, partner: S.partner, practice, events: onRaceEvent,
-    profile: (tr || (S.useProf !== false && !practice)) ? loadProfile() : null, trainPart: tr?.part || 0,
+    profile: loadProfile(), trainPart: tr?.part || 0,
     age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 }, mySex: S.cat === 'X' ? (S.edSex || 'M') : null,
   });
-  race.me.age = S.age; race.usedProfile = !practice && !tr && S.useProf !== false;
+  race.me.age = S.age; race.usedProfile = !practice && !tr && !on;
   if (on) race.countdown += (on.wait || 0) / 1000;
   hudInit();
   show(null); $('#hud').hidden = false; $('#touch').hidden = !isTouch;
@@ -503,7 +504,7 @@ function hudUpdate(dt) {
   const n = st.length;
   if (me.phase === 'station' && !race.practice) { $('#hBoard').innerHTML = stationBoard(); } else
   $('#hBoard').innerHTML = `<div class="hd"><span>HEAT · ${race.div.name}${race.ageGroup ? ' · ' + race.ageGroup : ''}</span><span>P${myPos}/${n}</span></div>` +
-    st.slice(0, 9).map((x, i) => `<div class="r ${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><span>${i + 1}</span><span>${escapeHtml(x.e.name.length > 22 ? x.e.name.slice(0, 21) + '…' : x.e.name)}${x.e.isRemote ? ' ●' : ''}</span><span>${escapeHtml(x.label)}</span></div>`).join('');
+    st.slice(0, 9).map((x, i) => `<div class="r ${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><span>${i + 1}</span><span>${escapeHtml(x.e.name.length > 20 ? x.e.name.slice(0, 19) + '…' : x.e.name)}${x.e.isRemote ? ' ●' : ''}${x.e.ovr ? ` <i class="ovr">${x.e.ovr}</i>` : ''}</span><span>${escapeHtml(x.label)}</span></div>`).join('');
   // tarjeta de estación
   const phase = me.phase + me.seg;
   if (phase !== lastPhase) {
@@ -524,7 +525,7 @@ function stationBoard() {
   }).sort((a, b) => b.f - a.f);
   const val = r => r.done ? '✓ salió' : r.wait ? 'aún no llega' : st.unit === 'reps' ? Math.floor(r.f * st.dist) + ' reps' : Math.floor(r.f * st.dist) + ' m';
   return `<div class="hd"><span>${st.name.toUpperCase()} · ${st.dist}${st.unit === 'reps' ? ' reps' : ' m'}</span><span>${rows.findIndex(r => r.e.isPlayer) + 1}.º aquí</span></div>` +
-    rows.slice(0, 9).map((r, k) => `<div class="r ${r.e.isPlayer ? 'me' : ''} ${r.e.ghost ? 'gh' : ''}" style="background-image:linear-gradient(90deg,rgba(255,229,0,.16) ${Math.max(0, r.f) * 100}%,transparent ${Math.max(0, r.f) * 100}%)"><span>${k + 1}</span><span>${escapeHtml(r.e.name.length > 22 ? r.e.name.slice(0, 21) + '…' : r.e.name)}</span><span>${val(r)}</span></div>`).join('');
+    rows.slice(0, 9).map((r, k) => `<div class="r ${r.e.isPlayer ? 'me' : ''} ${r.e.ghost ? 'gh' : ''}" style="background-image:linear-gradient(90deg,rgba(255,229,0,.16) ${Math.max(0, r.f) * 100}%,transparent ${Math.max(0, r.f) * 100}%)"><span>${k + 1}</span><span>${escapeHtml(r.e.name.length > 20 ? r.e.name.slice(0, 19) + '…' : r.e.name)}${r.e.ovr ? ` <i class="ovr">${r.e.ovr}</i>` : ''}</span><span>${val(r)}</span></div>`).join('');
 }
 let cardShown = false;
 function showCard() {
@@ -630,7 +631,7 @@ function showResults() {
   $('#rSplits').innerHTML = rows;
   // heat: termina la simulación de la IA para mostrar todos
   $('#rHeat').innerHTML = race.entries.map(e => ({ e, t: e.isRemote && !e.finished ? Infinity : e.total })).sort((a, b) => a.t - b.t)
-    .map((x, i) => `<tr class="${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><td>${i + 1}</td><td>${escapeHtml(x.e.name)} <span class="d">${escapeHtml(x.e.country)}</span></td><td class="r">${x.t === Infinity ? (x.e.left ? 'salió' : 'en carrera') : fmt(x.t)}</td></tr>`).join('');
+    .map((x, i) => `<tr class="${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><td>${i + 1}</td><td>${escapeHtml(x.e.name)} ${x.e.ovr ? `<i class="ovr">${x.e.ovr}</i> ` : ''}<span class="d">${escapeHtml(x.e.country)}</span></td><td class="r">${x.t === Infinity ? (x.e.left ? 'salió' : 'en carrera') : fmt(x.t)}</td></tr>`).join('');
   $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} · ${p.why}`).join('  ·  ') : 'Ninguna. Carrera limpia.';
   show('results');
 }
