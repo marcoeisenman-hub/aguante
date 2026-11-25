@@ -46,8 +46,9 @@ class Station {
   spend(e) { this.race.spend(this.me, e * 0.85); }
   noRep(text) {
     this.faults++;
-    const pen = this.faults >= 2 && this.id !== 'wb' && this.race.penaltiesOn ? 15 : 0;
-    if (pen) this.race.penalty(this.me, pen, 'No-rep (' + text + ')');
+    this.pens = this.pens || 0;
+    const pen = this.faults >= 2 && this.pens < 2 && this.id !== 'wb' && this.race.penaltiesOn ? 15 : 0;
+    if (pen) { this.pens++; this.race.penalty(this.race.me, pen, 'No-rep (' + text + ')'); }
     this.race.flash(pen ? `NO REP · ${text} · +15 s` : `NO REP · ${text}${this.faults === 1 && this.id !== 'wb' ? ' (aviso)' : ''}`, 'bad');
     this.race.sfx('norep');
   }
@@ -347,25 +348,25 @@ class BBJ extends Station {
     this.t += dt;
     const s = this.stage;
     const ef = this.ef;
-    if (s === 'stand' && I.pressed('D')) { this.stage = 'down'; this.timer = 0; }
+    if (s === 'stand' && I.pressed('D')) { this.stage = 'down'; this.timer = 0; this.wantUp = false; }
+    else if (s === 'stand' && (I.pressed('A') || I.pressed('U'))) { this.race.flash('Primero ↓: pecho al piso', 'meh', 1); }
     else if (s === 'down') {
       this.timer += dt; this.ph = lerp(0, 0.4, clamp(this.timer / (0.32 / ef ** 0.5), 0, 1));
       if (this.ph >= 0.4 && !this.thud) { this.thud = true; this.race.sfx('thud'); }
-      if (I.pressed('U')) {
-        if (this.ph < 0.38) { this.noRep('el pecho no tocó'); this.stage = 'up'; this.timer = 0; this.invalid = true; }
-        else { this.stage = 'up'; this.timer = 0; this.invalid = false; }
-        this.thud = false;
-      }
+      if (I.pressed('U')) this.wantUp = true;
+      if (this.wantUp && this.ph >= 0.4) { this.wantUp = false; this.stage = 'up'; this.timer = 0; this.invalid = false; this.thud = false; }
     } else if (s === 'up') {
       this.timer += dt; this.ph = lerp(0.4, 0.62, clamp(this.timer / (0.3 / ef ** 0.5), 0, 1));
       if (this.ph >= 0.62) { this.stage = 'set'; this.charge = 0; }
     } else if (s === 'set') {
       this.ph = 0.66;
       if (I.down('A')) { this.charge = Math.min(1.15, this.charge + dt * 1.6); }
-      if (I.released('A') && this.charge > 0.05) {
+      const maxed = this.charge >= 1.15;
+      if ((I.released('A') && this.charge > 0.05) || maxed) {
         const c = this.charge;
         let q;
-        if (c > 1.0) { this.noRep('pies no paralelos al caer'); q = 0; }
+        if (maxed) { this.noRep('pies no paralelos al caer'); q = 0; }
+        else if (c > 1.0) { q = 0.5; this.race.flash('Te pasaste: salto corto', 'meh', 1); }
         else q = c < 0.75 ? 0.35 + c * 0.6 : lerp(0.8, 1, (c - 0.75) / 0.25);
         if (this.invalid) q = 0;
         this.jump = { from: this.x, q, t: 0 };
@@ -477,7 +478,8 @@ class Lunges extends Station {
       if (this.depth >= 1 && !this.touch) { this.touch = true; this.race.sfx('thud', { soft: true }); }
       if (I.released(this.leg) || this.depth >= 1.08) {
         const ok = this.depth >= 0.95;
-        if (!ok) this.noRep('la rodilla no tocó');
+        if (!ok && this.depth >= 0.6) this.race.flash('Más abajo: la rodilla tiene que tocar', 'meh', 1.2);
+        else if (!ok) this.noRep('la rodilla no tocó');
         else { this.next = this.leg === 'L' ? 'R' : 'L'; }
         this.rising = 0.3; this.leg2 = this.leg; this.ok = ok; this.leg = null; this.touch = false;
         this.spend((0.13 + this.depth * 0.05) / this.lf);
@@ -524,7 +526,7 @@ class WallBalls extends Station {
     const ef = this.ef;
     if (this.state === 'ready') {
       this.ph = 0;
-      if (I.pressed('A')) { this.state = 'squat'; this.squat = 0; this.pt = 0; }
+      if (I.pressed('A')) { this.state = 'squat'; this.squat = 0; this.pt = 0.3; }
     } else if (this.state === 'squat') {
       this.squat = Math.min(1, this.squat + dt / (0.3 / ef ** 0.5));
       if (this.squat >= 1) { this.pt += dt * (2.3 + (1 - ef) * 0.8); this.pw = 0.5 - 0.5 * Math.cos(this.pt * Math.PI); }
@@ -553,7 +555,7 @@ class WallBalls extends Station {
     this.av.update(0);
     this.placeBall();
   }
-  zone() { const w = 0.16 + 0.06 * this.ef; const c = 0.72; return [c - w / 2, c + w / 2]; }
+  zone() { const w = 0.24 + 0.06 * this.ef; const c = 0.7; return [c - w / 2, c + w / 2]; }
   placeBall() {
     const b = this.ball;
     if (this.state === 'throw' && this.fly > 0.08) {

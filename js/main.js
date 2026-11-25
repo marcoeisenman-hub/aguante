@@ -267,7 +267,7 @@ function startDemo() {
   demo.started = true; demo.clock = 380;
 }
 function demoUpdate(dt, t) {
-  demo.clock += dt * 5;
+  demo.clock += dt * 5; demo.real += dt;
   if (demo.clock > demo.entries[1].total + 200) demo.clock = 200;
   demo.updateAI(dt);
   for (const e of demo.entries) if (!e.isPlayer) for (const m of e.members) if (m.av.group.visible) m.av.update(dt);
@@ -540,7 +540,7 @@ function loop(now) {
     boardT -= dt; if (boardT <= 0) { boardT = 1; drawJumbo(); }
   } else if ((state === 'results' || state === 'paused') && race) {
     if (room && onlineRace && state === 'results') { sendT -= dt; if (sendT <= 0) { sendT = 1; room.send({ t: 'st', s: race.snapshot() }); } race.updateRemotes(dt); }
-    if (state === 'results') { race.clock += dt * race.K; race.updateAI(dt); for (const e of race.entries) for (const m of e.members) if (m.av.group.visible) m.av.update(dt); raceCamera(dt); }
+    if (state === 'results') { race.clock += dt * race.K; race.real += dt; race.updateAI(dt); for (const e of race.entries) for (const m of e.members) if (m.av.group.visible) m.av.update(dt); raceCamera(dt); }
   }
   camera.position.copy(camPos); camera.lookAt(camLook);
   if (composer && Q >= 2) composer.render(); else renderer.render(world.scene, camera);

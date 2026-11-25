@@ -127,11 +127,11 @@ export class Race {
       this.entries.push(e); lane++;
     }
     if (o.ghost && !this.practice) {
-      const g = { id: 99, isPlayer: false, ghost: true, lane: (me.lane + 4) % LANES, kit: 2, country: 'PAN', name: 'Papá · fantasma', members: [{ sex: 'M', name: 'Papá' }], finished: false };
+      const g = { id: 99, isPlayer: false, ghost: true, lane: (me.lane + 4) % LANES, kit: 2, country: 'PAN', name: 'Papá · Tampa', members: [{ sex: 'M', name: 'Papá' }], finished: false };
       g.segT = PAPA.seg.slice(); g.roxT = Array(16).fill(PAPA.rox); g.total = PAPA.total;
       // en otras divisiones el fantasma corre igual (su carrera real de Men Open)
       this.buildTimeline(g);
-      g.members[0].av = new Athlete('M', 2); this.ghostify(g.members[0].av); this.world.scene.add(g.members[0].av.group);
+      g.members[0].av = new Athlete('M', 2); this.world.scene.add(g.members[0].av.group);
       this.entries.push(g); this.ghost = g;
     }
     // asignar estado de inicio
@@ -264,7 +264,7 @@ export class Race {
       ms.forEach((m, k) => {
         if (relay) { m.av.group.visible = k === activeK; if (k !== activeK) return; }
         const off = k * 0.9;
-        this.placeAI(e, m, k, ph, f, t + e.id * 0.37 + k * 0.21, off);
+        this.placeAI(e, m, k, ph, f, this.real + e.id * 0.37 + k * 0.21, off);   // animación a ritmo real (el reloj de carrera va K× más rápido)
       });
     }
   }
