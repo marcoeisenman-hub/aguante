@@ -492,14 +492,14 @@ export class Race {
       const mf = this.energyFactor(mate);
       const mateRef = REF[mate.sex].run * (mate.runMul || 1) / (mate.ageK || 1);
       const vOwn = 1000 / mateRef;                                   // su ritmo "RITMO" en m/s
-      const mateMax = Math.min(vSim, vOwn * (mate.maxMul || 1.12) * mf);   // te sigue si le da; si está cansado, menos
+      const gapM = me.s - me.partnerS, cap = vOwn * (mate.maxMul || 1.12) * mf;   // lo más rápido que puede ir ahora
+      // te sigue si le da (si va atrás, apura un poco para alcanzarte, sin pasar su tope)
+      const mateMax = Math.min(vSim * (gapM > 1.2 ? 1.06 : 1), cap);
       // gasta lo mismo que tú a ese ritmo (si no le da para seguirte, va a tope)
-      const mateDrain = vSim > vOwn * (mate.maxMul || 1.12) * mf ? 0.28 : G.drain;
+      const mateDrain = vSim > cap ? 0.28 : G.drain;
       mate.energy = clamp(mate.energy - mateDrain * simDt, 0, 100);
       mate.intensity = m.intensity;
-      const gapM = me.s - me.partnerS;
-      // si va atrás, apura un poco para alcanzarte
-      const mVis = mateMax * this.K * RUNVIS / 1000 * (gapM > 1.2 ? 1.06 : 1);
+      const mVis = mateMax * this.K * RUNVIS / 1000;
       const vMate = gapM > 0.8 ? mVis : Math.min(mVis, vVis * slow);
       me.partnerS += vMate * dt;
       if (me.partnerS > me.s - 0.6) me.partnerS = me.s - 0.6;
