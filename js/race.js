@@ -75,8 +75,12 @@ export class Race {
     const [best, med, worst] = fieldDistribution(div);
     const heat = this.practice ? 1 : Math.max(1, (div.elite ? 15 : 8) - remotes.length);
     const level = o.level || 'comp';     // 'amateur' | 'comp' | 'elite'
-    this.age = o.age || 0; this.ageK = this.age ? ageFactor(this.age) : 1;   // tu grupo de edad: rivales de tu edad
+    this.myAge = o.age || 0;
+    const withPapa = o.partner === 'papa' && div.format === 'doubles' && div.sexes[1] === 'M';
+    this.age = this.myAge && withPapa ? (this.myAge + PAPA.age) / 2 : this.myAge;      // Doubles: promedio de la pareja
+    this.ageK = this.age ? ageFactor(this.age) : 1;   // tu grupo de edad: rivales de tu edad
     this.ageGroup = this.age ? ageGroup(div.format, this.age) : '';
+    const R = o.resume && !this.online && !this.practice ? o.resume : null; this.resumed = !!R;
     const used = new Set();
     const pick = sex => { let n, tries = 0; do n = NAMES[sex][(Math.random() * NAMES[sex].length) | 0]; while (used.has(n) && ++tries < 60); used.add(n); return n; };
     // tiempos del campo
@@ -98,14 +102,12 @@ export class Race {
     // Doubles con papá: su ritmo sale de su carrera real (Tampa 2026, 1:33:20)
     if (o.partner === 'papa' && div.format === 'doubles' && div.sexes[1] === 'M') {
       const pm = me.members[1];
-      const runs = PAPA.seg.filter((_, i) => i % 2 === 0), avg = runs.reduce((a, b) => a + b, 0) / runs.length;
       pm.name = 'Papá'; pm.papa = true;
-      pm.runMul = (avg * 0.93) / REF.M.run; pm.maxMul = 1.06;
       pm.pow = {}; STATIONS.forEach((st, i) => pm.pow[st.id] = Math.min(1, (REF.M[st.id] / PAPA.seg[2 * i + 1]) * 1.1));
     }
     if (o.profile) applyProfile(me.members[0], o.profile);   // tu atleta entrenado
     if (o.profile) me.ovr = overall(o.profile);
-    if (this.ageK !== 1) for (const m of me.members) { if (m.papa) continue; m.ageK = this.ageK; }
+    if (this.myAge) for (const m of me.members) { const k = ageFactor(m.papa ? PAPA.age : this.myAge); if (k !== 1) m.ageK = k; }
     this.look = o.look || {};
     this.trainPart = o.trainPart || 0;
     me.members.forEach((m, k) => {
@@ -130,7 +132,12 @@ export class Race {
       e.members = div.sexes.map((sex, k) => ({ sex, load: div.loads[k], name: pick(sex) }));
       e.name = e.members.map(m => m.name).join(' / ');
       const sex = div.format === 'relay' ? (div.cat === 'W' ? 'F' : 'M') : (div.cat === 'W' ? 'F' : 'M');
-      const sp = aiSplits(totals[i], div.cat === 'X' ? 'M' : sex, gauss());
+      let sp = aiSplits(totals[i], div.cat === 'X' ? 'M' : sex, gauss());
+      const sv = R?.entries?.[i];
+      if (sv && sv.segT?.length === 16 && sv.roxT?.length === 16) {
+        sp = { seg: sv.segT, rox: sv.roxT }; e.kit = sv.kit ?? e.kit; e.country = sv.country || e.country; e.ovr = sv.ovr; e.lane = sv.lane ?? e.lane;
+        if (sv.names?.length === e.members.length) { e.members.forEach((m, k) => m.name = sv.names[k]); e.name = sv.names.join(' / '); }
+      }
       e.segT = sp.seg; e.roxT = sp.rox; e.total = sp.seg.reduce((a, b) => a + b, 0) + sp.rox.reduce((a, b) => a + b, 0);
       this.buildTimeline(e);
       e.members.forEach(m => { m.av = new Athlete(m.sex, e.kit); this.world.scene.add(m.av.group); });
@@ -141,7 +148,8 @@ export class Race {
       g.segT = PAPA.seg.slice(); g.roxT = Array(16).fill(PAPA.rox); g.total = PAPA.total;
       // en otras divisiones el fantasma corre igual (su carrera real de Men Open)
       this.buildTimeline(g);
-      g.members[0].av = new Athlete('M', 2); this.world.scene.add(g.members[0].av.group);
+      if (div.format === 'doubles') g.members.push({ sex: div.sexes[1], name: 'Pareja' });
+      g.members.forEach(m => { m.av = new Athlete(m.sex, 2); this.world.scene.add(m.av.group); });
       this.entries.push(g); this.ghost = g;
     }
     // asignar estado de inicio
@@ -158,6 +166,13 @@ export class Race {
     if (div.format === 'relay') me.members.forEach((m, k) => { if (k) m.av.group.visible = false; });
     me.relayPos = 0;
     if (this.practice) { me.seg = STATIONS.findIndex(s => s.id === this.practice) * 2 + 1; }
+    if (R) {
+      me.seg = R.seg | 0; this.clock = +R.clock || 0;
+      me.splits = R.splits || []; me.rox = R.rox || []; me.pens = R.pens || [];
+      (R.energy || []).forEach((v, k) => { if (me.members[k]) me.members[k].energy = clamp(+v || 100, 0, 100); });
+      if (div.format === 'relay') { me.active = R.active | 0; me.members.forEach((m, k) => m.av.group.visible = k === me.active); }
+      if (R.kind === 'station') me.phase = 'resumeSt';
+    }
     // pista de carga para la IA de estaciones
     this.lastBoard = 0;
   }
@@ -188,6 +203,16 @@ export class Race {
   get active() { return this.me.members[this.me.active]; }
   // segmento del jugador: 0..15 → índice de estación
   stationOf(seg) { return STATIONS[(seg - 1) / 2 | 0]; }
+  // para retomar la carrera si recargas la página (solo carreras normales, no online ni práctica)
+  save(kind) {
+    if (this.online || this.practice || this.trainPart || this.twoP) return;
+    const me = this.me;
+    this.events('save', {
+      v: 1, kind, seg: me.seg, clock: this.clock, splits: me.splits.slice(), rox: me.rox.slice(), pens: me.pens.slice(),
+      energy: me.members.map(m => Math.round(m.energy)), active: me.active | 0,
+      entries: this.entries.filter(e => !e.isPlayer && !e.isRemote && !e.ghost).map(e => ({ segT: e.segT, roxT: e.roxT, kit: e.kit, country: e.country, ovr: e.ovr, lane: e.lane, names: e.members.map(m => m.name) })),
+    });
+  }
 
   // ---------- bucle ----------
   update(dt, I) {
@@ -374,7 +399,7 @@ export class Race {
     if (me.finished) { me.members.forEach((m, k) => { if (m.av.group.visible) { this.placeFinished(m.av, k * 2 + 0.5); m.av.set('cheer', 0, {}); } }); return; }
     // estados: start→run→roxIn→station→roxOut→run… ; me.seg 0..15 (pares = run)
     for (const m of me.members) { m.effort = Math.max(0, (m.effort || 0) - dt * 0.8); }
-    if (this.practice && !me.ctl) this.beginStation();
+    if ((this.practice && !me.ctl) || me.phase === 'resumeSt') this.beginStation();
     if (me.phase === 'start') { me.phase = 'run'; this.beginRun(); }
     if (me.phase === 'run') this.playerRun(dt, simDt, I);
     else if (me.phase === 'roxIn' || me.phase === 'roxOut' || me.phase === 'toFinish') this.playerRox(dt, simDt, I);
@@ -395,6 +420,7 @@ export class Race {
     const km = me.seg / 2 + 1;
     this.events('seg', { kind: 'run', km });
     if (me.seg > 0) this.say(km === 8 ? 'Último kilómetro. ¡Con todo!' : `Kilómetro ${km}.`);
+    this.save('run');
     if (this.div.format === 'doubles') { me.partnerS = me.s - 0.8; me.splitPen = false; }
   }
   playerRun(dt, simDt, I) {
@@ -464,11 +490,12 @@ export class Race {
     // dobles: el compañero sigue tu ritmo hasta donde le da (si se separan más de 10 s: +1 min)
     if (mate) {
       const mf = this.energyFactor(mate);
-      const mateRef = REF[mate.sex].run * (mate.runMul || 1);
+      const mateRef = REF[mate.sex].run * (mate.runMul || 1) / (mate.ageK || 1);
       const vOwn = 1000 / mateRef;                                   // su ritmo "RITMO" en m/s
       const r = Math.min(vSim, vOwn * (mate.maxMul || 1.12)) / vOwn;  // qué tan exigido va
       const mateMax = vOwn * r * mf;
-      const mateDrain = r < 0.8 ? -0.12 : r < 0.93 ? -0.05 : r < 1.05 ? 0.015 : r < 1.15 ? 0.10 : 0.28;
+      // gasta lo mismo que tú a ese ritmo (si no le da para seguirte, va a tope)
+      const mateDrain = vSim > vOwn * (mate.maxMul || 1.12) * mf ? 0.28 : G.drain;
       mate.energy = clamp(mate.energy - mateDrain * simDt, 0, 100);
       mate.intensity = m.intensity;
       const gapM = me.s - me.partnerS;
@@ -520,7 +547,7 @@ export class Race {
       const mate = me.members[1]; const pm = this.alongPath(this.roxPath(me.phase, st, me.lane, 1), Math.max(0, me.roxF - 0.03));
       mate.av.group.position.copy(pm.pos); mate.av.group.rotation.y = Math.atan2(pm.dir.x, pm.dir.z);
       mate.av.set('run', this.runPhase(mate.av, vVis), { speed: 0.8 });
-      mate.energy = clamp(mate.energy + 0.05 * simDt, 0, 100);
+      if (fast) mate.energy = clamp(mate.energy - 0.06 * simDt, 0, 100); else mate.energy = clamp(mate.energy + 0.05 * simDt, 0, 100);
     }
     if (me.roxF >= 1) {
       me.rox.push(this.clock - me.roxStart);
@@ -550,6 +577,7 @@ export class Race {
     me.ctl = new CTRL[st.id](this, m, st.id, m.load, me.lane);
     me.auto = null;
     this.events('seg', { kind: 'station', st });
+    this.save('station');
     this.say(`${st.name}.`);
     if (this.div.format === 'doubles') this.placeRestMate();
   }

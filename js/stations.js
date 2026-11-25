@@ -322,17 +322,19 @@ class BBJ extends Station {
   update(dt, I) {
     this.t += dt;
     const ef = this.ef, tD = 0.27 / ef ** 0.5, tU = 0.23 / ef ** 0.5, tJ = 0.38;
-    if (tapAny(I)) {
-      if (this.stage === 'stand' || (this.stage === 'jump' && this.jump.t > tJ * 0.5)) this.queued = true;
-      else if (!this._wf || this.t - this._wf > 1) { this._wf = this.t; this.race.flash('Termina el burpee', 'meh', 0.7); }
+    // mantén ESPACIO (o cualquier flecha): burpees seguidos a tu ritmo. Suelta: terminas el salto y te quedas de pie respirando
+    const hold = I.down('A') || I.down('L') || I.down('R') || I.down('U') || I.down('D') || tapAny(I);
+    if (this.stage === 'stand') {
+      this.ph = 0;
+      if (hold) { this.stage = 'down'; this.timer = 0; }
+      else this.me.energy = Math.min(100, this.me.energy + dt * this.K * this.kw * 0.06);   // de pie recuperas
     }
-    if (this.stage === 'stand') { this.ph = 0; if (this.queued) { this.queued = false; this.stage = 'down'; this.timer = 0; } }
     else if (this.stage === 'down') {
       this.timer += dt; this.ph = lerp(0, 0.4, clamp(this.timer / tD, 0, 1));
       if (this.timer >= tD) { this.race.sfx('thud'); this.stage = 'up'; this.timer = 0; }
     } else if (this.stage === 'up') {
       this.timer += dt; this.ph = lerp(0.4, 0.66, clamp(this.timer / tU, 0, 1));
-      if (this.timer >= tU) { this.stage = 'jump'; this.jump = { from: this.x, t: 0, d: Math.min(this.per * ef, this.total - this.x) }; this.spend(0.5 * this.kw); }
+      if (this.timer >= tU) { this.stage = 'jump'; this.jump = { from: this.x, t: 0, d: Math.min(this.per * ef, this.total - this.x) }; this.xv = this.x; this.spend(0.5 * this.kw); }
     } else if (this.stage === 'jump') {
       const j = this.jump; j.t += dt;
       const k = clamp(j.t / tJ, 0, 1);
@@ -349,7 +351,7 @@ class BBJ extends Station {
     this.sh = sh;
   }
   hud() { return { gauge: null, big: this.done.toFixed(0) + ' m', sub: `de 80 m · carril ${Math.min(4, (this.sh?.lap ?? 0) + 1)}/4` }; }
-  hints() { return [['ESPACIO', 'cada toque = burpee + salto'], ['', 'toca al caer para encadenar']]; }
+  hints() { return [['MANTÉN ESPACIO', 'burpees seguidos'], ['SUELTA', 'respiras de pie']]; }
   cam() { const sh = this.sh || { x: 0, dir: 1 }; const x = this.L.pos.x + sh.x; return { pos: _v.set(x - sh.dir * 2.6, 1.9, this.L.pos.z + 3.6 * (this.L.pos.z < 0 ? 1 : -1)), look: _w.set(x + sh.dir * 1.2, 0.5, this.L.pos.z) }; }
 }
 
@@ -427,9 +429,12 @@ class Lunges extends Station {
   update(dt, I) {
     this.t += dt;
     const ef = this.ef, tD = 0.22 / ef ** 0.6, tU = 0.19;
-    if (tapAny(I)) {
+    // ← pierna izquierda, → pierna derecha: hay que alternar, una zancada cada toque
+    const want = this.leg === 'L' ? 'L' : 'R', other = want === 'L' ? 'R' : 'L';
+    if (I.pressed(want)) {
       if (this.st === 'stand' || (this.st === 'up' && this.timer > tU * 0.4)) this.queued = true;
-      else if (!this._wf || this.t - this._wf > 1) { this._wf = this.t; this.race.flash('Termina la zancada', 'meh', 0.7); }
+    } else if (I.pressed(other) || I.pressed('A')) {
+      if (!this._wf || this.t - this._wf > 0.8) { this._wf = this.t; this.race.flash(`Ahora la pierna ${want === 'L' ? 'izquierda ←' : 'derecha →'}`, 'meh', 0.7); }
     }
     if (this.st === 'stand') { if (this.queued) { this.queued = false; this.st = 'down'; this.timer = 0; } }
     else if (this.st === 'down') {
@@ -453,7 +458,7 @@ class Lunges extends Station {
     this.bag.rotation.set(0, (this.sh?.dir ?? 1) > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
   }
   hud() { return { gauge: null, big: this.done.toFixed(0) + ' m', sub: `de 100 m · saco ${this.load.sandbag} kg · carril ${Math.min(5, (this.sh?.lap ?? 0) + 1)}/5` }; }
-  hints() { return [['ESPACIO', 'cada toque = una zancada'], ['', 'toca al subir para encadenar']]; }
+  hints() { return [['← →', 'alterna las piernas'], ['', `ahora: ${this.leg === 'L' ? '← izquierda' : '→ derecha'}`]]; }
   cam() { const sh = this.sh || { x: 0, dir: 1 }; const x = this.L.pos.x + sh.x; return { pos: _v.set(x + sh.dir * 2.4, 1.6, this.L.pos.z + 3.2 * (this.L.pos.z < 0 ? 1 : -1)), look: _w.set(x, 0.9, this.L.pos.z) }; }
 }
 

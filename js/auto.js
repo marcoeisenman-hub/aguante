@@ -28,10 +28,13 @@ export class Autopilot {
       }
       const rate = (id === 'farmers' ? 3.6 : (id === 'push' || id === 'pull') ? 7 : 4.4) * (0.9 + this.skill * 0.12);
       if (this.t >= this.next) { I.tap(this.alt); this.alt = this.alt === 'L' ? 'R' : 'L'; this.next = this.t + 1 / rate * (1 + this.jitter(0.25)); }
-    } else if (id === 'bbj' || id === 'lunges') {
-      // solo toca cuando se puede encadenar (así no salen avisos de "termina…")
-      const ready = id === 'bbj' ? ctl.stage === 'stand' || (ctl.stage === 'jump' && ctl.jump.t > 0.22) : ctl.st === 'stand' || (ctl.st === 'up' && ctl.timer > 0.09);
-      if (ready && !ctl.queued && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
+    } else if (id === 'bbj') {
+      // mantiene; si está muy cansado respira un poco de pie
+      if (ctl.me.energy < 18) this.rest = true; else if (ctl.me.energy > 35) this.rest = false;
+      if (this.rest) I.release('A'); else I.press('A');
+    } else if (id === 'lunges') {
+      const ready = ctl.st === 'stand' || (ctl.st === 'up' && ctl.timer > 0.09);
+      if (ready && !ctl.queued && this.t >= this.next) { I.tap(ctl.leg === 'L' ? 'L' : 'R'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
     } else if (id === 'wb') {
       if ((ctl.state === 'ready' || ctl.state === 'catch') && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
     }

@@ -131,8 +131,7 @@ function initAudio() {
 }
 $('#optSound').checked = !store.get('aguanteMute', false);
 $('#optSound').addEventListener('change', e => { Audio.setMuted(!e.target.checked); });
-$('#optVoice').checked = store.get('aguanteVoice', true);
-$('#optVoice').addEventListener('change', e => store.set('aguanteVoice', e.target.checked));
+
 $('#optQ').value = String(Q); $('#optQ').addEventListener('change', e => setQuality(+e.target.value));
 $('#optK').value = String(K); $('#optK').addEventListener('change', e => { K = +e.target.value; store.set('aguanteK', K); });
 
@@ -155,7 +154,7 @@ function renderSetup() {
   $('#fPartnerBox').hidden = S.format !== 'doubles';
   $('#fPartner [data-v=papa]').disabled = S.cat !== 'M';
   if (S.partner === 'papa' && S.cat !== 'M') { S.partner = 'ai'; return renderSetup(); }
-  $('#fPartnerNote').textContent = S.partner === 'papa' ? 'Papá corre con su ritmo real de Tampa (~5:10/km en dobles) y es más fuerte en Wall Balls y Lunges que en BBJ. Ajusta tu ritmo para no separarte.' : S.partner === 'p2' ? 'J1: WASD + ESPACIO + E · J2: flechas + ENTER + SHIFT derecho.' : S.cat === 'M' ? 'Solo Doubles Men: papá puede ser tu pareja.' : '';
+  $('#fPartnerNote').textContent = S.partner === 'papa' ? 'Papá (42) corre a tu ritmo igual que una pareja IA, y su fuerza en cada estación sale de su carrera real en Tampa (más fuerte en Wall Balls y Lunges que en BBJ).' : S.partner === 'p2' ? 'J1: WASD + ESPACIO + E · J2: flechas + ENTER + SHIFT derecho.' : S.cat === 'M' ? 'Solo Doubles Men: papá puede ser tu pareja.' : '';
   const d = division(S.format, S.cat, S.level);
   $('#divName').textContent = d.name;
   const notes = {
@@ -182,7 +181,8 @@ function renderSetup() {
   sel.value = S.country; sel.onchange = () => S.country = sel.value;
   const nm = $('#pName'); nm.value = S.name; nm.oninput = () => S.name = nm.value.trim();
   const ag = $('#pAge'); ag.value = S.age; ag.onchange = () => { S.age = clamp(+ag.value || 16, 16, 89); renderSetup(); };
-  $('#pAgeG').textContent = `Grupo de edad ${agOf(S.format, S.age)}: tus rivales son de tu edad` + (ageFactor(S.age) < 0.999 ? ` (rendimiento ${Math.round(ageFactor(S.age) * 100)}%)` : '');
+  const withPapa = S.format === 'doubles' && S.cat === 'M' && S.partner === 'papa', tAge = withPapa ? (S.age + PAPA.age) / 2 : S.age;
+  $('#pAgeG').textContent = withPapa ? `Grupo de edad ${agOf(S.format, tAge)}: en Doubles cuenta el promedio de la pareja (tú ${S.age} + papá ${PAPA.age})` : `Grupo de edad ${agOf(S.format, S.age)}: tus rivales son de tu edad` + (ageFactor(S.age) < 0.999 ? ` (rendimiento ${Math.round(ageFactor(S.age) * 100)}%)` : '');
   $('#kits').innerHTML = KIT_COLORS.map((c, i) => `<button style="background:${c}" data-i="${i}" class="${i === S.kit ? 'on' : ''}"></button>`).join('');
   for (const b of $$('#kits button')) b.onclick = () => { S.kit = +b.dataset.i; renderSetup(); };
   const g = $('#pGhost'); g.checked = S.ghost; g.onchange = () => S.ghost = g.checked;
@@ -391,7 +391,8 @@ function demoUpdate(dt, t) {
 }
 
 // ---------------- Carrera ----------------
-function startRace(practice = null, on = null, tr = null) {
+function startRace(practice = null, on = null, tr = null, resumeData = null) {
+  if (!resumeData) store.set('hrResume', null);
   onlineRace = !!on; training = tr;
   demo?.dispose(); demo = null;
   race?.dispose();
@@ -400,12 +401,12 @@ function startRace(practice = null, on = null, tr = null) {
   twoP = !on && S.format === 'doubles' && S.partner === 'p2';
   lastSetup = practice;
   race = new Race({
-    world, div: d, K: on?.K ?? K, seed: on?.seed, remotes: on?.remotes, lane: on?.lane, audio: { sfx: (n, o) => Audio.sfx(n, o), cheer: s => Audio.cheer(s), say: (t, o) => { if ($('#optVoice').checked) Audio.say(t, o); } },
+    world, div: d, K: on?.K ?? K, seed: on?.seed, remotes: on?.remotes, lane: on?.lane, audio: { sfx: (n, o) => Audio.sfx(n, o), cheer: s => Audio.cheer(s), say: () => { } },
     level: S.heat, name: S.name || 'Tú', country: S.country, kit: S.kit, ghost: S.ghost && !(d.format === 'doubles' && S.partner === 'papa'), twoP, partner: S.partner, practice, events: onRaceEvent,
     profile: TRAINING_ON || tr ? loadProfile() : null, trainPart: tr?.part || 0,
-    age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 }, mySex: S.cat === 'X' ? (S.edSex || 'M') : null,
+    resume: resumeData, age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 }, mySex: S.cat === 'X' ? (S.edSex || 'M') : null,
   });
-  race.me.age = S.age; race.usedProfile = TRAINING_ON && !practice && !tr;
+  race.me.age = race.age || S.age; race.usedProfile = TRAINING_ON && !practice && !tr;
   if (on) race.countdown += (on.wait || 0) / 1000;
   hudInit();
   show(null); $('#hud').hidden = false; $('#touch').hidden = !isTouch;
@@ -427,17 +428,28 @@ $('#hPause').onclick = pauseGame;
 $('#rMenu').onclick = quitToMenu;
 $('#rAgain').onclick = () => { if (training) { quitToMenu(); show('train'); return; } if (onlineRace && room) { quitToMenu(); show('online'); renderLobby(); return; } startRace(lastSetup); };
 function quitToMenu() {
+  store.set('hrResume', null);
   race?.dispose(); race = null; state = 'menu';
   $('#hud').hidden = true; $('#touch').hidden = true;
-  startDemo(); show('home'); Audio.music(1); Audio.crowd(0.25);
+  startDemo(); show('home'); Audio.music(1); Audio.crowd(0.25); renderResume();
   Audio.loop('sled', 0); Audio.loop('flywheel', 0); Audio.loop('breath', 0);
 }
+
+// si recargas la página en plena carrera, puedes seguir desde el tramo en que ibas
+function savedRace() { const r = store.get('hrResume', null); return r && r.v === 1 && Date.now() - r.at < 6 * 3600e3 && r.S ? r : null; }
+function renderResume() {
+  const r = savedRace(), b = $('#hResume'); b.hidden = !r; if (!r) return;
+  const i = r.seg >> 1; b.textContent = `Continuar mi carrera · ${r.kind === 'run' ? 'Run ' + (i + 1) : STATIONS[i].name} · ${fmt(r.clock)}`;
+}
+$('#hResume').onclick = () => { const r = savedRace(); if (!r) return renderResume(); initAudio(); Object.assign(S, r.S); store.set('aguanteSetup', S); startRace(null, null, null, r); };
+renderResume();
 
 let lastPhase = null, cardT = 0;
 function onRaceEvent(type, data) {
   if (type === 'count') { const c = $('#hCount'); c.textContent = data; c.style.opacity = 1; }
   if (type === 'go') { const c = $('#hCount'); c.textContent = '¡YA!'; setTimeout(() => c.textContent = '', 700); Audio.music(2); }
-  if (type === 'finish') setTimeout(showResults, 2600);
+  if (type === 'finish') { store.set('hrResume', null); setTimeout(showResults, 2600); }
+  if (type === 'save') store.set('hrResume', { ...data, at: Date.now(), S: JSON.parse(JSON.stringify(S)) });
   if (type === 'split') onSplit(data);
 }
 function onSplit({ seg, t }) {
@@ -544,10 +556,10 @@ function showCard() {
     ski: 'Aprieta ← → o ESPACIO lo más rápido que puedas. ↑ ↓ cambia el damper: alto rinde más por jalón pero cansa más.',
     push: 'Aprieta ← → o ESPACIO lo más rápido que puedas. No dejes que se pare: arrancarlo de nuevo cuesta.',
     pull: 'Aprieta ← → o ESPACIO lo más rápido que puedas: cada toque es un jalón. Al pasar los 12,5 m corres al otro lado.',
-    bbj: 'Cada toque de ESPACIO = un burpee y un salto (~2 m). Toca justo al caer para encadenar. 80 m = 4 carriles de 20 m.',
+    bbj: 'Mantén ESPACIO: burpees y saltos seguidos (~2 m). Suelta para respirar de pie. 80 m = 4 carriles de 20 m.',
     row: 'Aprieta ← → o ESPACIO lo más rápido que puedas. ↑ ↓ cambia el damper: alto rinde más por jalón pero cansa más.',
     farmers: 'Mantén → para caminar. Si el agarre se acaba se caen: suéltalas antes con ESPACIO. 200 m = 10 carriles de 20 m.',
-    lunges: 'Cada toque de ESPACIO = una zancada (~1,2 m). Toca al subir para encadenar. 100 m = 5 carriles de 20 m.',
+    lunges: 'Alterna ← → (izquierda, derecha…): cada toque es una zancada con esa pierna (~1,2 m). 100 m = 5 carriles de 20 m.',
     wb: 'Cada toque de ESPACIO = sentadilla y lanzamiento. Toca justo cuando atrapas la pelota para ir sin pausas.',
   }[st.id];
   $('#hCard').innerHTML = `<div class="n">ESTACIÓN ${idx + 1} DE 8</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${how}</p>`;
@@ -665,7 +677,10 @@ function raceCamera(dt) {
     const yaw = av.group.rotation.y; const dx = Math.sin(yaw), dz = Math.cos(yaw);
     pos = tmpA.set(p.x - dx * 4.2, 2.3, p.z - dz * 4.2); look = tmpB.set(p.x + dx * 3, 1.0, p.z + dz * 3); k = 3;
   }
+  // nunca dejar la cámara con un valor inválido (si pasa, la pantalla queda negra para siempre)
+  if (![pos.x, pos.y, pos.z, look.x, look.y, look.z].every(Number.isFinite)) return;
   camPos.lerp(pos, 1 - Math.exp(-dt * k)); camLook.lerp(look, 1 - Math.exp(-dt * k * 1.3));
+  if (![camPos.x, camPos.y, camPos.z, camLook.x, camLook.y, camLook.z].every(Number.isFinite)) { camPos.copy(pos); camLook.copy(look); }
 }
 
 // ---------------- Bucle ----------------
@@ -703,4 +718,4 @@ function drawJumbo() {
 
 resize();
 boot().catch(e => { console.error(e); $('#loadtxt').textContent = 'Error al cargar: ' + e.message; });
-window.__game = { get room() { return room; }, openRoom, startTraining, tapHit, get tap() { return tap; }, get race() { return race; }, get state() { return state; }, startRace, show, pad1, pad2, S, setQuality };
+window.__game = { camera, get room() { return room; }, openRoom, startTraining, tapHit, get tap() { return tap; }, get race() { return race; }, get state() { return state; }, startRace, show, pad1, pad2, S, setQuality };

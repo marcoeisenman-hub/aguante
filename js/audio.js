@@ -575,7 +575,9 @@ export const Audio = {
     }
   },
 
-  say(text, { priority = false } = {}) {
+  // locutor apagado: a Marco no le gustó la voz (y Chrome la seguía diciendo al cerrar la pestaña)
+  say() { },
+  _sayOld(text, { priority = false } = {}) {
     if (muted || typeof text !== 'string' || !text.trim()
       || !globalThis.speechSynthesis || !globalThis.SpeechSynthesisUtterance) return;
     const item = { text: text.trim(), priority };
@@ -590,3 +592,8 @@ export const Audio = {
     updateOutput();
   },
 };
+
+// por si quedó algo en la cola de voz de una versión anterior: callarla, y nada de sonido al cerrar
+try { globalThis.speechSynthesis?.cancel(); } catch { }
+globalThis.addEventListener?.('pagehide', () => { try { globalThis.speechSynthesis?.cancel(); } catch { } try { ctx?.suspend(); } catch { } });
+globalThis.addEventListener?.('pageshow', e => { if (e.persisted) try { ctx?.resume(); } catch { } });

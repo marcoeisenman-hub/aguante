@@ -111,6 +111,7 @@ export const PAPA = {
   // [run1, ski, run2, push, run3, pull, run4, bbj, run5, row, run6, farmers, run7, lunges, run8, wb]
   seg: [311, 299, 318, 211, 328, 310, 332, 334, 330, 300, 340, 160, 422, 319, 330, 407],
 };
+PAPA.age = 42;
 PAPA.rox = (PAPA.total - PAPA.seg.reduce((a, b) => a + b, 0)) / 16;
 
 // Nombres de rivales (inventados)
