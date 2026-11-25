@@ -442,7 +442,7 @@ function showResults() {
   const me = race.me, d = race.div;
   Audio.music(1);
   $('#touch').hidden = true;
-  $('#rDiv').textContent = d.name + (race.practice ? ' · práctica' : '') + ' · AGUANTE';
+  $('#rDiv').textContent = d.name + (race.practice ? ' · práctica' : '') + ' · HYBRID.RACE';
   $('#rTime').textContent = fmt(me.total);
   if (race.practice) {
     const st = STATIONS[(me.seg - 1) / 2];

@@ -5,7 +5,7 @@ import { initMaterials, MAT, skiErg, rower, sled, kettlebell, sandbag, wallBall,
 import { STATIONS } from './data.js';
 
 const ROOT = new URL('../', import.meta.url).href;
-export const ACCENT = '#ff5a1f';
+export const ACCENT = '#ffe500';
 export const TRACK = { L: 26, R: 16, W: 5 };          // rectas de 52 m, curvas de radio 16, ancho 5 m
 TRACK.P = 4 * TRACK.L + 2 * Math.PI * TRACK.R;        // ≈ 204.5 m por vuelta
 export const LANES = 8;
@@ -151,7 +151,7 @@ export class World {
     const lines = canvasTex(256, 256, (x, w, h) => {
       x.fillStyle = '#000'; x.fillRect(0, 0, w, h);
       x.fillStyle = '#fff'; x.fillRect(0, 0, 6, h); x.fillRect(w - 6, 0, 6, h);
-      x.fillStyle = '#ff5a1f'; for (let y = 0; y < h; y += 64) x.fillRect(w * 0.38 - 3, y, 6, 36);   // línea del Fast Lane (40 % interior)
+      x.fillStyle = '#ffe500'; for (let y = 0; y < h; y += 64) x.fillRect(w * 0.38 - 3, y, 6, 36);   // línea del Fast Lane (40 % interior)
     }, false);
     const m = new THREE.MeshStandardMaterial({ map: ct, normalMap: this.t.carpetN, color: 0x2c2d31, roughness: 0.95, emissiveMap: lines, emissive: 0xffffff, emissiveIntensity: 0.0 });
     m.onBeforeCompile = sh => {           // pintar líneas encima de la alfombra
@@ -166,7 +166,7 @@ export class World {
     // vallas acolchadas a los lados con publicidad
     this.boards();
     // alfombra de cronometraje (vuelta) en el vértice oeste
-    const mat = new THREE.Mesh(new THREE.BoxGeometry(W + 0.2, 0.02, 1.2), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, emissive: 0xff5a1f, emissiveIntensity: 0.15 }));
+    const mat = new THREE.Mesh(new THREE.BoxGeometry(W + 0.2, 0.02, 1.2), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, emissive: 0xffe500, emissiveIntensity: 0.15 }));
     const p0 = trackPos(LAP_MAT_S); mat.position.set(p0.x, 0.02, p0.z); mat.rotation.y = 0; this.scene.add(mat);
     this.lapMat = mat;
   }
@@ -174,7 +174,7 @@ export class World {
     const { P, W } = TRACK;
     const adTex = canvasTex(2048, 128, (x, w, h) => {
       const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#121316'); g.addColorStop(1, '#050506'); x.fillStyle = g; x.fillRect(0, 0, w, h);
-      const items = [['AGUANTE', '#fff'], ['8 KM · 8 ESTACIONES', ACCENT], ['FITNESS RACING', '#fff'], ['ROXZONE', ACCENT]];
+      const items = [['HYBRID.RACE', '#fff'], ['8 KM · 8 ESTACIONES', ACCENT], ['FITNESS RACING', '#fff'], ['ROXZONE', ACCENT]];
       x.font = '800 78px Barlow, Arial, sans-serif'; x.textBaseline = 'middle';
       let px = 40; for (let k = 0; k < 2; k++) for (const [t, c] of items) { x.fillStyle = c; x.fillText(t, px, h / 2 + 4); px += x.measureText(t).width + 90; }
       x.fillStyle = ACCENT; x.fillRect(0, h - 6, w, 6);
@@ -217,7 +217,7 @@ export class World {
     turf.repeat.set(10, 1);
     const turfM = new THREE.MeshStandardMaterial({ map: turf, roughness: 1, normalMap: this.t.carpetN, normalScale: new THREE.Vector2(1.2, 1.2) });
     const lineM = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.6, emissive: 0x333333 });
-    const accM = new THREE.MeshStandardMaterial({ color: 0xff5a1f, roughness: 0.5, emissive: 0xff5a1f, emissiveIntensity: 0.25 });
+    const accM = new THREE.MeshStandardMaterial({ color: 0xffe500, roughness: 0.5, emissive: 0xffe500, emissiveIntensity: 0.25 });
     const matM = new THREE.MeshStandardMaterial({ color: 0x151618, roughness: 0.85, normalMap: this.t.rubberN });
     for (const id of ['push', 'pull', 'bbj', 'farmers', 'lunges']) {
       const st = ST[id];
@@ -250,7 +250,7 @@ export class World {
       const q = laneOf('pull', j); const sq = sled(L.pull); sq.rotation.y = -Math.PI / 2; sq.position.set(q.pos.x + 0.2, 0, q.pos.z); G.add(sq); this.eq.pull.push(sq);
       const f = laneOf('farmers', j); const k1 = kettlebell(L.farmers), k2 = kettlebell(L.farmers);
       k1.position.set(f.pos.x - 0.5, 0, f.pos.z - 0.25); k2.position.set(f.pos.x - 0.5, 0, f.pos.z + 0.25); G.add(k1, k2); this.eq.kb.push([k1, k2]);
-      const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.8, 0.001, 0.9)), new THREE.LineBasicMaterial({ color: 0xff5a1f })); box.position.set(f.pos.x - 0.5, 0.02, f.pos.z); G.add(box);
+      const box = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.8, 0.001, 0.9)), new THREE.LineBasicMaterial({ color: 0xffe500 })); box.position.set(f.pos.x - 0.5, 0.02, f.pos.z); G.add(box);
       const lu = laneOf('lunges', j); const bg = sandbag(L.sandbag); bg.position.set(lu.pos.x - 0.6, 0.12, lu.pos.z); G.add(bg); this.eq.bag.push(bg);
       const w = laneOf('wb', j); const h = L.target || 3.0;
       const tg = wbTarget(h); tg.position.set(w.pos.x, 0, w.pos.z + 0.95 * ST.wb.side); tg.rotation.y = ST.wb.side > 0 ? Math.PI : 0; G.add(tg); this.eq.wb.push(tg);
@@ -287,7 +287,7 @@ export class World {
     const start = arch(5.6, 3.4, 'START', ''); const sp = trackPos(OUT_S + 6); start.position.set(sp.x, 0, sp.z); start.rotation.y = -0.35; s.add(start);
     this.startArch = start;
     // cintas del pasillo (postes y cinta)
-    const postM = MAT.black, tapeM = new THREE.MeshStandardMaterial({ color: 0xff5a1f, roughness: 0.5, emissive: 0xff5a1f, emissiveIntensity: 0.2 });
+    const postM = MAT.black, tapeM = new THREE.MeshStandardMaterial({ color: 0xffe500, roughness: 0.5, emissive: 0xffe500, emissiveIntensity: 0.2 });
     for (const z of [-2.2, 2.2]) for (let x = ROX.inX + 2; x < ROX.finishX - 2; x += 4) {
       if (Math.abs(x - 0) < 0.1) continue;
       const p = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 1, 8), postM); p.position.set(x, 0.5, z); p.castShadow = true; s.add(p);
@@ -360,7 +360,7 @@ export class World {
     const im = new THREE.InstancedMesh(g, m, pts.length);
     const ph = new Float32Array(pts.length);
     const m4 = new THREE.Matrix4(), col = new THREE.Color();
-    const shirt = [0x1b1c20, 0x2a2b30, 0x5a5d63, 0x1a2a44, 0x7a1f12, 0xcfcfcf, 0x203a26, 0x3d2d1f, 0xff5a1f, 0x101010];
+    const shirt = [0x1b1c20, 0x2a2b30, 0x5a5d63, 0x1a2a44, 0x7a1f12, 0xcfcfcf, 0x203a26, 0x3d2d1f, 0x33363c, 0x101010];
     pts.forEach((p, i) => {
       const s = 0.9 + Math.random() * 0.2;
       m4.makeRotationY(p[2] > 0 ? Math.PI : 0).scale(new THREE.Vector3(s, s, s)).setPosition(p[0], p[1], p[2]);
@@ -380,7 +380,7 @@ export class World {
     for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.PlaneGeometry(9, 5.06), m); const a = i * Math.PI / 2; p.position.set(Math.sin(a) * 4.71, 0, Math.cos(a) * 4.71); p.rotation.y = a; g.add(p); }
     for (const sx of [-3, 3]) for (const sz of [-3, 3]) { const cab = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 4, 4), MAT.steel); cab.position.set(sx, 4.7, sz); g.add(cab); }
     g.position.set(0, 10.8, 0); this.scene.add(g); this.screen = g;
-    this.drawScreen([{ name: 'AGUANTE', time: '' }], 'FITNESS RACING');
+    this.drawScreen([{ name: 'HYBRID.RACE', time: '' }], 'FITNESS RACING');
   }
   drawScreen(rows, title, sub = '') {
     const c = this.scrCanvas, x = c.getContext('2d');

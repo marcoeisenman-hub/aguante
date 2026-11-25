@@ -13,7 +13,7 @@ export function initMaterials(tex) {
   MAT.plate = new THREE.MeshStandardMaterial({ color: 0x111113, roughness: 0.62, metalness: 0.1 });
   MAT.grip = new THREE.MeshStandardMaterial({ color: 0x232426, roughness: 0.95 });
   MAT.screen = new THREE.MeshStandardMaterial({ color: 0x9aa39a, roughness: 0.3, emissive: 0x1b2a1b, emissiveIntensity: 0.6 });
-  MAT.accent = new THREE.MeshStandardMaterial({ color: 0xff5a1f, roughness: 0.45, metalness: 0.1 });
+  MAT.accent = new THREE.MeshStandardMaterial({ color: 0xffe500, roughness: 0.45, metalness: 0.1 });
   MAT.kb = new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.45, metalness: 0.55 });
   MAT.bag = new THREE.MeshStandardMaterial({ color: 0x222325, roughness: 0.92, normalMap: tex.carpetN, normalScale: new THREE.Vector2(0.6, 0.6) });
   MAT.ball = new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.75, normalMap: tex.carpetN, normalScale: new THREE.Vector2(0.3, 0.3) });
@@ -221,7 +221,7 @@ export function wbTarget(h) {
 }
 
 // ---------- Arcos de truss con letrero LED ----------
-export function arch(w, h, text, sub = '', color = '#ff5a1f') {
+export function arch(w, h, text, sub = '', color = '#ffe500') {
   const g = new THREE.Group();
   const trussM = MAT.alu;
   const post = (x) => {
