@@ -189,7 +189,7 @@ function renderSetup() {
 }
 $('#goRace').addEventListener('click', () => {
   initAudio(); store.set('aguanteSetup', S);
-  if (room) { room.me.name = S.name || 'Atleta'; room.me.kit = S.kit; room.me.country = S.country; room.hello(); if (room.isHost) room.send({ t: 'cfg', cfg: hostCfg() }); show('online'); renderLobby(); return; }
+  if (room) { room.me.name = S.name || 'Atleta'; room.me.kit = S.kit; room.me.country = S.country; room.me.skin = S.skin | 0; room.me.height = S.height || 1; room.hello(); if (room.isHost) room.send({ t: 'cfg', cfg: hostCfg() }); show('online'); renderLobby(); return; }
   startRace();
 });
 
@@ -397,7 +397,7 @@ function startRace(practice = null, on = null, tr = null) {
     world, div: d, K: on?.K ?? K, seed: on?.seed, remotes: on?.remotes, lane: on?.lane, audio: { sfx: (n, o) => Audio.sfx(n, o), cheer: s => Audio.cheer(s), say: (t, o) => { if ($('#optVoice').checked) Audio.say(t, o); } },
     level: S.heat, name: S.name || 'Tú', country: S.country, kit: S.kit, ghost: S.ghost && !(d.format === 'doubles' && S.partner === 'papa'), twoP, partner: S.partner, practice, events: onRaceEvent,
     profile: (tr || (S.useProf !== false && !practice)) ? loadProfile() : null, trainPart: tr?.part || 0,
-    age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 },
+    age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 }, mySex: S.cat === 'X' ? (S.edSex || 'M') : null,
   });
   race.me.age = S.age; race.usedProfile = !practice && !tr && S.useProf !== false;
   if (on) race.countdown += (on.wait || 0) / 1000;

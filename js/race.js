@@ -91,7 +91,7 @@ export class Race {
     // jugador
     const me = {
       id: 0, isPlayer: true, name: o.name || 'Tú', country: o.country || 'PAN', lane: (o.lane ?? 3) % LANES, kit: o.kit ?? 0,
-      members: div.sexes.map((sex, k) => ({ sex, load: div.loads[k], energy: 100, hr: 92, name: k ? (this.twoP && k === 1 ? 'Jugador 2' : pick(sex)) : (o.name || 'Tú') })),
+      members: this.myOrder(div, o.mySex).map((i, k) => ({ sex: div.sexes[i], load: div.loads[i], energy: 100, hr: 92, name: k ? (this.twoP && k === 1 ? 'Jugador 2' : pick(div.sexes[i])) : (o.name || 'Tú') })),
       seg: 0, phase: 'start', splits: [], rox: [], pens: [], total: 0, finished: false,
     };
     // Doubles con papá: su ritmo sale de su carrera real (Tampa 2026, 1:33:20)
@@ -176,6 +176,8 @@ export class Race {
   // ---------- utilidades para estaciones ----------
   energyFactor(m) { const e = m.energy; return e > 40 ? 1 : e > 10 ? lerp(0.74, 1, (e - 10) / 30) : lerp(0.62, 0.74, e / 10); }
   spend(m, e) { m.energy = clamp(m.energy - e * (m.fit || 1), 0, 100); m.effort = Math.min(1.3, (m.effort || 0) + e * 0.6); }
+  // en divisiones mixtas, tu personaje (hombre/mujer) es el primero del equipo
+  myOrder(div, sex) { const o = div.sexes.map((_, i) => i); const j = sex ? div.sexes.indexOf(sex) : -1; if (j > 0) [o[0], o[j]] = [o[j], o[0]]; return o; }
   penalty(e, sec, why) { e.pens.push({ sec, why, seg: e.seg }); this.flash(`PENALIZACIÓN +${fmt(sec)} · ${why}`, 'bad', 3); this.sfx('whistle'); }
   flash(text, kind = 'good', dur = 1.4) { this.flashes.push({ text, kind, t: dur }); if (this.flashes.length > 3) this.flashes.shift(); }
   sfx(n, o) { this.audio?.sfx(n, o); }
