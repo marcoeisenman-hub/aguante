@@ -33,7 +33,9 @@ export class Room {
   emit(t, ...a) { for (const f of this.h[t] || []) try { f(...a); } catch (e) { console.error(e); } }
   async connect() {
     await loadMqtt();
+    if (this.closed) return;
     this.k = await keyFor(this.code);
+    if (this.closed) return;
     for (const url of URLS) {
       const x = { ok: false };
       const cli = x.cli = window.mqtt.connect(url, { clientId: 'ag_' + this.me.id + '_' + uid().slice(0, 4), clean: true, keepalive: 15, reconnectPeriod: 1500, connectTimeout: 8000 });
@@ -86,6 +88,7 @@ export class Room {
   list() { return [this.me, ...this.peers.values()].sort((a, b) => a.joined - b.joined || (a.id < b.id ? -1 : 1)); }
   get isHost() { const h = this.list().find(p => p.host); return h ? h.id === this.me.id : this.list()[0].id === this.me.id; }
   leave() {
+    this.closed = true;
     clearInterval(this.beat);
     const cs = this.clis;
     const close = () => { this.clis = []; this.ok = false; for (const x of cs) try { x.cli.end(false); } catch { } };

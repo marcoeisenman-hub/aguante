@@ -230,11 +230,12 @@ $('#oBack').onclick = () => { leaveRoom(); show('home'); };
 $('#oEdit').onclick = () => show('setup');
 $('#oGo').onclick = () => {
   if (!room?.isHost) return;
-  const L = room.list();
+  const L = room.list().slice(0, 8);
   const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3) })) };
   room.send(m); launchOnline(m);
 };
 function launchOnline(m) {
+  if (!m.people.some(p => p.id === room.me.id)) { $('#oStatus').textContent = 'La sala está llena (máx. 8): esta carrera arrancó sin ti.'; return; }
   const c = m.cfg; Object.assign(S, { format: c.format, cat: c.cat, level: c.level, heat: c.heat });
   if (S.format === 'doubles' && S.partner === 'p2') S.partner = 'ai';
   const lanes = new Map(m.lanes);

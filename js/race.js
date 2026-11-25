@@ -214,6 +214,8 @@ export class Race {
   }
   applyRemote(rid, m) {
     const e = this.remotes?.get(rid); if (!e || !m || !Number.isFinite(m.x) || !Number.isFinite(m.z)) return;
+    const num = (v, d = 0) => Number.isFinite(v) ? v : d;
+    m.y = num(m.y); m.r = num(m.r); m.ph = num(m.ph); m.rate = num(m.rate);
     if (e.left) { e.left = false; e.members[0].av.group.visible = true; }
     m.lbl = String(m.lbl || '').slice(0, 12); m.prog = Number(m.prog) || 0; if (typeof m.a !== 'string' || !(m.a in ACTIONS)) m.a = 'run';
     e.tgt = m; e.tgtT = performance.now(); e.prog = m.prog; e.label = m.lbl;
