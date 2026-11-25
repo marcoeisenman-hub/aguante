@@ -189,7 +189,7 @@ function renderSetup() {
 }
 $('#goRace').addEventListener('click', () => {
   initAudio(); store.set('aguanteSetup', S);
-  if (room) { room.me.name = S.name || 'Atleta'; room.me.kit = S.kit; room.me.country = S.country; room.me.skin = S.skin | 0; room.me.height = S.height || 1; room.hello(); if (room.isHost) room.send({ t: 'cfg', cfg: hostCfg() }); show('online'); renderLobby(); return; }
+  if (room) { room.me.name = S.name || 'Atleta'; room.me.kit = S.kit; room.me.country = S.country; room.me.skin = S.skin | 0; room.me.height = S.height || 1; room.me.sex = S.edSex || 'M'; room.hello(); if (room.isHost) room.send({ t: 'cfg', cfg: hostCfg() }); show('online'); renderLobby(); return; }
   startRace();
 });
 
@@ -296,7 +296,7 @@ const hostCfg = () => ({ format: S.format, cat: S.cat, level: S.level, heat: S.h
 function divLabel(c) { return division(c.format, c.cat, c.level).name; }
 function openRoom(code) {
   room?.leave();
-  room = new Room(code, { name: S.name || 'Atleta', kit: S.kit, country: S.country, skin: S.skin | 0, height: S.height || 1, host: false });
+  room = new Room(code, { name: S.name || 'Atleta', kit: S.kit, country: S.country, skin: S.skin | 0, height: S.height || 1, sex: S.edSex || 'M', host: false });
   roomCfg = null;
   $('#oOff').hidden = true; $('#oOn').hidden = false;
   $('#oCodeShow').textContent = room.code;
@@ -335,7 +335,7 @@ $('#oEdit').onclick = () => show('setup');
 $('#oGo').onclick = () => {
   if (!room?.isHost) return;
   const L = room.list().slice(0, 8);
-  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3), skin: Math.abs(p.skin | 0) % 5, height: Math.min(1.05, Math.max(0.95, +p.height || 1)) })) };
+  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3), skin: Math.abs(p.skin | 0) % 5, height: Math.min(1.05, Math.max(0.95, +p.height || 1)), sex: p.sex === 'F' ? 'F' : 'M' })) };
   room.send(m); launchOnline(m);
 };
 function launchOnline(m) {

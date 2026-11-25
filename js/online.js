@@ -55,7 +55,7 @@ export class Room {
     }, 2500);
   }
   recalc() { const was = this.ok; this.ok = this.clis.some(x => x.ok); if (was && !this.ok) this.emit('status', 'lost'); }
-  pub() { const { id, name, kit, joined, country, skin, height } = this.me; return { id, name, kit, joined, country, skin, height }; }
+  pub() { const { id, name, kit, joined, country, skin, height, sex } = this.me; return { id, name, kit, joined, country, skin, height, sex }; }
   hello() { this.send({ t: 'hi', p: this.pub(), ask: true }); }
   async send(m) {
     if (!this.k) return;
