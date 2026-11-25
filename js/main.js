@@ -220,7 +220,7 @@ function renderLobby() {
   $('#oGo').hidden = !host; $('#oGo').disabled = !room.ok;
   $('#oEdit').textContent = host ? 'Cambiar división y atleta' : 'Cambiar mi atleta';
   const myIdx = L.findIndex(p => p.id === room.me.id);
-  $('#oHint').textContent = !host && myIdx >= 8 ? 'Sala llena (máx. 8): esperas la próxima carrera.' : host ? (L.length < 2 ? 'Cuando entren tus amigos, dale a la salida. También puedes correr solo.' : (L.length > 8 ? `Hay ${L.length}: solo corren los 8 primeros en entrar.` : `${L.length} atletas listos. El resto del heat se llena con rivales IA.`)) : 'El líder elige la división y da la salida.';
+  $('#oHint').textContent = !host && myIdx >= 8 ? 'Sala llena (máx. 8): corres cuando alguien salga.' : host ? (L.length < 2 ? 'Cuando entren tus amigos, dale a la salida. También puedes correr solo.' : (L.length > 8 ? `Hay ${L.length}: solo corren los 8 primeros en entrar.` : `${L.length} atletas listos. El resto del heat se llena con rivales IA.`)) : 'El líder elige la división y da la salida.';
 }
 setInterval(() => { if (room?.ok && room.isHost && state !== 'race') room.send({ t: 'cfg', cfg: hostCfg() }); }, 2000);
 const escapeHtml = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
