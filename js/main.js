@@ -316,7 +316,7 @@ function leaveRoom() { room?.leave(); room = null; history.replaceState(null, ''
 function renderLobby() {
   if (!room) return;
   const L = room.list();
-  $('#oPlayers').innerHTML = L.map((p, i) => `<div><i style="background:${KIT_COLORS[p.kit ?? 0]}"></i>${escapeHtml(p.name || 'Atleta')}${p.id === room.me.id ? ' (tú)' : ''} <i class="ovr">${Math.max(1, Math.min(99, p.ovr | 0)) || 50}</i><small>${i === 0 ? 'líder' : ''}</small></div>`).join('');
+  $('#oPlayers').innerHTML = L.map((p, i) => `<div><i style="background:${KIT_COLORS[p.kit ?? 0]}"></i>${escapeHtml(p.name || 'Atleta')}${p.id === room.me.id ? ' (tú)' : ''} <i class="ovr">${((p.ovr | 0) ? Math.max(1, Math.min(100, p.ovr | 0)) : 50)}</i><small>${i === 0 ? 'líder' : ''}</small></div>`).join('');
   const host = room.isHost;
   const c = host ? hostCfg() : roomCfg;
   $('#oDiv').textContent = c ? divLabel(c) : 'esperando al líder…';
@@ -336,7 +336,7 @@ $('#oEdit').onclick = () => show('setup');
 $('#oGo').onclick = () => {
   if (!room?.isHost) return;
   const L = room.list().slice(0, 8);
-  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3), skin: Math.abs(p.skin | 0) % 5, height: Math.min(1.05, Math.max(0.95, +p.height || 1)), sex: p.sex === 'F' ? 'F' : 'M', ovr: Math.max(1, Math.min(99, p.ovr | 0)) || 50 })) };
+  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3), skin: Math.abs(p.skin | 0) % 5, height: Math.min(1.05, Math.max(0.95, +p.height || 1)), sex: p.sex === 'F' ? 'F' : 'M', ovr: ((p.ovr | 0) ? Math.max(1, Math.min(100, p.ovr | 0)) : 50) })) };
   room.send(m); launchOnline(m);
 };
 function launchOnline(m) {
@@ -400,7 +400,7 @@ function startRace(practice = null, on = null, tr = null) {
     profile: loadProfile(), trainPart: tr?.part || 0,
     age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 }, mySex: S.cat === 'X' ? (S.edSex || 'M') : null,
   });
-  race.me.age = S.age; race.usedProfile = !practice && !tr && !on;
+  race.me.age = S.age; race.usedProfile = !practice && !tr;
   if (on) race.countdown += (on.wait || 0) / 1000;
   hudInit();
   show(null); $('#hud').hidden = false; $('#touch').hidden = !isTouch;

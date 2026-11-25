@@ -118,7 +118,7 @@ export class Race {
     const usedLanes = new Set([me.lane]);
     this.remotes = new Map();
     remotes.forEach((r, i) => {
-      const e = { id: 200 + i, isPlayer: false, isRemote: true, rid: r.id, name: r.name || 'Amigo', ovr: Math.max(1, Math.min(99, r.ovr | 0)) || 50, country: r.country || 'PAN', lane: r.lane % LANES, kit: r.kit ?? 0, members: [], finished: false, prog: 0, label: 'Run 1' };
+      const e = { id: 200 + i, isPlayer: false, isRemote: true, rid: r.id, name: r.name || 'Amigo', ovr: ((r.ovr | 0) ? Math.max(1, Math.min(100, r.ovr | 0)) : 50), country: r.country || 'PAN', lane: r.lane % LANES, kit: r.kit ?? 0, members: [], finished: false, prog: 0, label: 'Run 1' };
       e.members = [{ sex: div.sexes.includes(r.sex) ? r.sex : div.sexes[0], name: e.name }];   // mixtas: el personaje que eligió tu amigo
       e.members[0].av = new Athlete(e.members[0].sex, e.kit, { skin: r.skin | 0, height: Math.min(1.06, Math.max(0.94, +r.height || 1)) }); this.world.scene.add(e.members[0].av.group);
       usedLanes.add(e.lane); this.remotes.set(r.id, e); this.entries.push(e);
