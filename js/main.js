@@ -185,7 +185,7 @@ function renderSetup() {
   for (const b of $$('#kits button')) b.onclick = () => { S.kit = +b.dataset.i; renderSetup(); };
   const g = $('#pGhost'); g.checked = S.ghost; g.onchange = () => S.ghost = g.checked;
   { const P = loadProfile(), hr = heatRange(fieldDistribution(division(S.format, S.cat, S.level)), S.heat, division(S.format, S.cat, S.level).elite ? fieldDistribution({ ...division(S.format, S.cat, S.level), elite: false, pro: false }) : null); const o = overall(P);
-    $('#pProfOvr').innerHTML = `Tu atleta: nivel <b>${o}</b> · rivales de este heat: nivel <b>${hr[0]}–${hr[1]}</b>` + (o < hr[0] - 5 ? ' · <span style="color:var(--meh)">te cuesta: entrena o baja de heat</span>' : o > hr[1] + 5 ? ' · <span style="color:var(--good)">listo para un heat más duro</span>' : '') + (P.fatigue >= 40 ? ` · <span style="color:var(--bad)">fatiga ${Math.round(P.fatigue)}%</span>` : ''); }
+    $('#pProfOvr').innerHTML = `Tu atleta: nivel <b>${o}</b> · rivales de este heat: nivel <b>${hr[0] >= 100 ? '99+' : hr[0]}–${hr[1] >= 100 ? '99+' : hr[1]}</b>` + (hr[0] >= 100 ? ' (atletas élite: más que el máximo que da entrenar)' : '') + (o < hr[0] - 5 ? ' · <span style="color:var(--meh)">te cuesta: entrena o baja de heat</span>' : o > hr[1] + 5 ? ' · <span style="color:var(--good)">listo para un heat más duro</span>' : '') + (P.fatigue >= 40 ? ` · <span style="color:var(--bad)">fatiga ${Math.round(P.fatigue)}%</span>` : ''); }
   store.set('aguanteSetup', S);
 }
 $('#goRace').addEventListener('click', () => {
@@ -504,7 +504,7 @@ function hudUpdate(dt) {
   const n = st.length;
   if (me.phase === 'station' && !race.practice) { $('#hBoard').innerHTML = stationBoard(); } else
   $('#hBoard').innerHTML = `<div class="hd"><span>HEAT · ${race.div.name}${race.ageGroup ? ' · ' + race.ageGroup : ''}</span><span>P${myPos}/${n}</span></div>` +
-    st.slice(0, 9).map((x, i) => `<div class="r ${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><span>${i + 1}</span><span>${escapeHtml(x.e.name.length > 20 ? x.e.name.slice(0, 19) + '…' : x.e.name)}${x.e.isRemote ? ' ●' : ''}${x.e.ovr ? ` <i class="ovr">${x.e.ovr}</i>` : ''}</span><span>${escapeHtml(x.label)}</span></div>`).join('');
+    st.slice(0, 9).map((x, i) => `<div class="r ${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><span>${i + 1}</span><span>${escapeHtml(x.e.name.length > 20 ? x.e.name.slice(0, 19) + '…' : x.e.name)}${x.e.isRemote ? ' ●' : ''}${x.e.ovr ? ` <i class="ovr">${x.e.ovr >= 100 ? '99+' : x.e.ovr}</i>` : ''}</span><span>${escapeHtml(x.label)}</span></div>`).join('');
   // tarjeta de estación
   const phase = me.phase + me.seg;
   if (phase !== lastPhase) {
@@ -525,7 +525,7 @@ function stationBoard() {
   }).sort((a, b) => b.f - a.f);
   const val = r => r.done ? '✓ salió' : r.wait ? 'aún no llega' : st.unit === 'reps' ? Math.floor(r.f * st.dist) + ' reps' : Math.floor(r.f * st.dist) + ' m';
   return `<div class="hd"><span>${st.name.toUpperCase()} · ${st.dist}${st.unit === 'reps' ? ' reps' : ' m'}</span><span>${rows.findIndex(r => r.e.isPlayer) + 1}.º aquí</span></div>` +
-    rows.slice(0, 9).map((r, k) => `<div class="r ${r.e.isPlayer ? 'me' : ''} ${r.e.ghost ? 'gh' : ''}" style="background-image:linear-gradient(90deg,rgba(255,229,0,.16) ${Math.max(0, r.f) * 100}%,transparent ${Math.max(0, r.f) * 100}%)"><span>${k + 1}</span><span>${escapeHtml(r.e.name.length > 20 ? r.e.name.slice(0, 19) + '…' : r.e.name)}${r.e.ovr ? ` <i class="ovr">${r.e.ovr}</i>` : ''}</span><span>${val(r)}</span></div>`).join('');
+    rows.slice(0, 9).map((r, k) => `<div class="r ${r.e.isPlayer ? 'me' : ''} ${r.e.ghost ? 'gh' : ''}" style="background-image:linear-gradient(90deg,rgba(255,229,0,.16) ${Math.max(0, r.f) * 100}%,transparent ${Math.max(0, r.f) * 100}%)"><span>${k + 1}</span><span>${escapeHtml(r.e.name.length > 20 ? r.e.name.slice(0, 19) + '…' : r.e.name)}${r.e.ovr ? ` <i class="ovr">${r.e.ovr >= 100 ? '99+' : r.e.ovr}</i>` : ''}</span><span>${val(r)}</span></div>`).join('');
 }
 let cardShown = false;
 function showCard() {
@@ -631,7 +631,7 @@ function showResults() {
   $('#rSplits').innerHTML = rows;
   // heat: termina la simulación de la IA para mostrar todos
   $('#rHeat').innerHTML = race.entries.map(e => ({ e, t: e.isRemote && !e.finished ? Infinity : e.total })).sort((a, b) => a.t - b.t)
-    .map((x, i) => `<tr class="${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><td>${i + 1}</td><td>${escapeHtml(x.e.name)} ${x.e.ovr ? `<i class="ovr">${x.e.ovr}</i> ` : ''}<span class="d">${escapeHtml(x.e.country)}</span></td><td class="r">${x.t === Infinity ? (x.e.left ? 'salió' : 'en carrera') : fmt(x.t)}</td></tr>`).join('');
+    .map((x, i) => `<tr class="${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><td>${i + 1}</td><td>${escapeHtml(x.e.name)} ${x.e.ovr ? `<i class="ovr">${x.e.ovr >= 100 ? '99+' : x.e.ovr}</i> ` : ''}<span class="d">${escapeHtml(x.e.country)}</span></td><td class="r">${x.t === Infinity ? (x.e.left ? 'salió' : 'en carrera') : fmt(x.t)}</td></tr>`).join('');
   $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} · ${p.why}`).join('  ·  ') : 'Ninguna. Carrera limpia.';
   show('results');
 }

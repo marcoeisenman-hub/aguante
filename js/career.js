@@ -63,8 +63,8 @@ export function ovrFor(dist, minutes) {
   const [best, med, worst] = dist, t50 = best + (med - best) * 0.5;
   const x = Math.log(t50 / minutes);
   const v = x >= 0 ? 50 + x * (50 / Math.log(1.14)) : 50 + x * (50 / Math.log(worst / t50));
-  const soft = v > 90 ? 90 + 9 * (1 - Math.exp(-(v - 90) / 70)) : v;   // arriba de 90 se comprime para que los élite no queden todos en 99
-  return Math.round(Math.max(1, Math.min(99, soft)));
+  // sin comprimir: así un 70 de bot es lo mismo que un 70 tuyo. Los que pasan de 99 (élite) se muestran como 99+
+  return Math.round(Math.max(1, Math.min(100, v)));
 }
 // rango de niveles de un heat (el mismo cálculo con que se arma el heat en race.js)
 export function heatRange(dist, level, scale = null) {
