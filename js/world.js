@@ -114,7 +114,7 @@ export class World {
     const fill = new THREE.DirectionalLight(0x9fb4ff, 0.5); fill.position.set(20, 18, -25); s.add(fill);
     // focos de color del show sobre la pista
     this.spots = [];
-    const cols = [0xffffff, 0xffd7b0, 0xff7a3d, 0xffffff];
+    const cols = [0xffffff, 0xffd7b0, 0xffe36a, 0xffffff];
     for (let i = 0; i < 4; i++) {
       const sp = new THREE.SpotLight(cols[i], 60, 60, 0.28, 0.6, 1.4);
       sp.position.set(-30 + i * 20, 15, i % 2 ? 22 : -22); sp.target.position.set(-30 + i * 20, 0, i % 2 ? 16 : -16);
@@ -390,7 +390,7 @@ export class World {
     x.textAlign = 'right'; x.font = '700 36px Barlow, Arial'; x.fillText(sub, 994, 37); x.textAlign = 'left';
     rows.slice(0, 8).forEach((r, i) => {
       const y = 112 + i * 58;
-      x.fillStyle = r.me ? 'rgba(255,90,31,0.22)' : (i % 2 ? '#0c0d10' : '#08090b'); x.fillRect(16, y - 27, 992, 54);
+      x.fillStyle = r.me ? 'rgba(255,229,0,0.2)' : (i % 2 ? '#0c0d10' : '#08090b'); x.fillRect(16, y - 27, 992, 54);
       x.fillStyle = r.me ? ACCENT : '#8f9298'; x.font = '800 40px Barlow, Arial'; x.fillText(String(i + 1), 34, y + 2);
       x.fillStyle = '#fff'; x.font = (r.me ? '800 ' : '600 ') + '40px Barlow, Arial'; x.fillText(r.name, 100, y + 2);
       x.fillStyle = '#9a9ca1'; x.font = '600 32px Barlow, Arial'; x.fillText(r.where || '', 560, y + 2);

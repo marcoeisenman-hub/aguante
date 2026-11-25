@@ -136,7 +136,7 @@ b{font-weight:700}
 .tpad.right{right:20px;align-items:flex-end}
 .tpad button{width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);font-size:26px;backdrop-filter:blur(4px)}
 .tpad.mid button{width:58px;height:50px;border-radius:12px;font-size:18px}
-.tpad button.act{width:96px;height:96px;background:rgba(255,90,31,.55)}
+.tpad button.act{width:96px;height:96px;background:rgba(255,229,0,.6)}
 .tpad button.sm{width:56px;height:56px;font-size:16px;font-weight:800}
 .tpad button.on{background:rgba(255,255,255,.35)}
 
@@ -152,7 +152,7 @@ b{font-weight:700}
 .splits td{padding:5px 4px;border-bottom:1px solid rgba(255,255,255,.05)}
 .splits td.r{text-align:right}
 .splits tr.st td:first-child{color:var(--acc);font-weight:700}
-.splits tr.me td{background:rgba(255,90,31,.18);font-weight:700}
+.splits tr.me td{background:rgba(255,229,0,.16);font-weight:700}
 .splits tr.gh td{color:#9ccaff}
 .splits .d{color:var(--mut);font-size:12px}
 .splits .up{color:var(--good)}.splits .dn{color:var(--bad)}
