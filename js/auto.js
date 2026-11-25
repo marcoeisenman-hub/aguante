@@ -29,7 +29,9 @@ export class Autopilot {
       const rate = (id === 'farmers' ? 3.6 : (id === 'push' || id === 'pull') ? 7 : 4.4) * (0.9 + this.skill * 0.12);
       if (this.t >= this.next) { I.tap(this.alt); this.alt = this.alt === 'L' ? 'R' : 'L'; this.next = this.t + 1 / rate * (1 + this.jitter(0.25)); }
     } else if (id === 'bbj' || id === 'lunges') {
-      if (this.t >= this.next) { I.tap('A'); this.next = this.t + 0.08 + Math.max(0, this.jitter(0.2)); }
+      // solo toca cuando se puede encadenar (así no salen avisos de "termina…")
+      const ready = id === 'bbj' ? ctl.stage === 'stand' || (ctl.stage === 'jump' && ctl.jump.t > 0.22) : ctl.st === 'stand' || (ctl.st === 'up' && ctl.timer > 0.09);
+      if (ready && !ctl.queued && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
     } else if (id === 'wb') {
       if ((ctl.state === 'ready' || ctl.state === 'catch') && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
     }

@@ -371,7 +371,8 @@ class Farmers extends Station {
       this.grip = Math.min(1, this.grip + dt * 0.55);
       this.v = 0;
       this.av.set('crouch', 0, { blend: 0.2 });
-      if (I.pressed('A') || I.pressed('L') || I.pressed('R')) { this.down = false; this.pick = 0.35; this.race.sfx('kbPick'); }
+      // vuelves a levantarlas con un toque, o solas si sigues manteniendo la flecha y ya recuperaste el agarre
+      if (I.pressed('A') || I.pressed('L') || I.pressed('R') || ((I.down('R') || I.down('L')) && this.grip >= 0.6)) { this.down = false; this.pick = 0.35; this.race.sfx('kbPick'); }
     } else {
       if (this.pick > 0) this.pick -= dt;
       if (I.pressed('A')) { this.down = true; this.v = 0; this.race.sfx('kbDrop'); }
