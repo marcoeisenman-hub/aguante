@@ -594,7 +594,7 @@ class WallBalls extends Station {
 export const CTRL = { ski: Ski, push: Push, pull: Pull, bbj: BBJ, row: Row, farmers: Farmers, lunges: Lunges, wb: WallBalls };
 
 // calidad del paso según la cadencia: el ritmo ideal da 1; aplastar teclas rinde menos
-function cadQ(gap, ideal, st) { if (st && gap < ideal * 0.6 && (!st._sp || st.t - st._sp > 1.5)) { st._sp = st.t; st.race.flash('Muy rápido: pasos firmes, no aplastes', 'meh', 1.1); } if (gap >= ideal) return 1; if (gap <= ideal * 0.55) return 0.12; return lerp(0.3, 1, (gap - ideal * 0.55) / (ideal * 0.45)); }
+function cadQ(gap, ideal, st) { if (st && gap < ideal * 0.6 && (!st._sp || st.t - st._sp > 1.5)) { st._sp = st.t; st.race.flash('Muy rápido: pasos firmes, no aplastes', 'meh', 1.1); } if (gap >= ideal) return 1; if (gap <= ideal * 0.55) return 0.12; return lerp(0.12, 1, (gap - ideal * 0.55) / (ideal * 0.45)); }
 
 function fmtS(s) { if (!isFinite(s) || s <= 0) return '--:--'; const m = Math.floor(s / 60), x = Math.floor(s % 60); return m + ':' + String(x).padStart(2, '0'); }
 

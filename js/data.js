@@ -83,7 +83,6 @@ export const RECORDS = {
   'Doubles Mixed': ['49:13', 'Cole Learn / Mollie Fkiaras · Melbourne, dic. 2025'],
   'Doubles Men Pro': ['47:40', 'Tim Wenisch / Alexander Rončević · Londres, mar. 2026'],
   'Doubles Women Pro': ['52:11', 'Lauren Weeks / Vivian Tafuto · Varsovia, abr. 2026'],
-  'Doubles Mixed Pro': ['53:08', 'Jennifer Nikolaus / Fabian Eisenlauer · Niza (Mundial), jun. 2024'],
   'Relay Men': ['45:43', 'Woods / Olsen / Røssland / White · Londres, dic. 2025'],
   'Relay Women': ['51:26', 'Hill / Stockley / Geddes / Falconer · Londres, dic. 2025'],
   'Relay Mixed': ['46:47', 'Ifversen / Bent / Wietrzyk / Botterill · Varsovia, abr. 2026'],
