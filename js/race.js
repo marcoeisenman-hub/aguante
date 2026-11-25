@@ -169,7 +169,7 @@ export class Race {
     if (R) {
       me.seg = R.seg | 0; this.clock = +R.clock || 0;
       me.splits = R.splits || []; me.rox = R.rox || []; me.pens = R.pens || [];
-      (R.energy || []).forEach((v, k) => { if (me.members[k]) me.members[k].energy = clamp(+v || 100, 0, 100); });
+      (R.energy || []).forEach((v, k) => { if (me.members[k]) me.members[k].energy = clamp(Number.isFinite(+v) ? +v : 100, 0, 100); });
       if (div.format === 'relay') { me.active = R.active | 0; me.members.forEach((m, k) => m.av.group.visible = k === me.active); }
       if (R.kind === 'station') me.phase = 'resumeSt';
     }
@@ -208,7 +208,7 @@ export class Race {
     if (this.online || this.practice || this.trainPart || this.twoP) return;
     const me = this.me;
     this.events('save', {
-      v: 1, kind, seg: me.seg, clock: this.clock, splits: me.splits.slice(), rox: me.rox.slice(), pens: me.pens.slice(),
+      v: 1, K: this.K, kind, seg: me.seg, clock: this.clock, splits: me.splits.slice(), rox: me.rox.slice(), pens: me.pens.slice(),
       energy: me.members.map(m => Math.round(m.energy)), active: me.active | 0,
       entries: this.entries.filter(e => !e.isPlayer && !e.isRemote && !e.ghost).map(e => ({ segT: e.segT, roxT: e.roxT, kit: e.kit, country: e.country, ovr: e.ovr, lane: e.lane, names: e.members.map(m => m.name) })),
     });
@@ -492,8 +492,7 @@ export class Race {
       const mf = this.energyFactor(mate);
       const mateRef = REF[mate.sex].run * (mate.runMul || 1) / (mate.ageK || 1);
       const vOwn = 1000 / mateRef;                                   // su ritmo "RITMO" en m/s
-      const r = Math.min(vSim, vOwn * (mate.maxMul || 1.12)) / vOwn;  // qué tan exigido va
-      const mateMax = vOwn * r * mf;
+      const mateMax = Math.min(vSim, vOwn * (mate.maxMul || 1.12) * mf);   // te sigue si le da; si está cansado, menos
       // gasta lo mismo que tú a ese ritmo (si no le da para seguirte, va a tope)
       const mateDrain = vSim > vOwn * (mate.maxMul || 1.12) * mf ? 0.28 : G.drain;
       mate.energy = clamp(mate.energy - mateDrain * simDt, 0, 100);

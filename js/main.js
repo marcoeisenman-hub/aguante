@@ -401,7 +401,7 @@ function startRace(practice = null, on = null, tr = null, resumeData = null) {
   twoP = !on && S.format === 'doubles' && S.partner === 'p2';
   lastSetup = practice;
   race = new Race({
-    world, div: d, K: on?.K ?? K, seed: on?.seed, remotes: on?.remotes, lane: on?.lane, audio: { sfx: (n, o) => Audio.sfx(n, o), cheer: s => Audio.cheer(s), say: () => { } },
+    world, div: d, K: on?.K ?? resumeData?.K ?? K, seed: on?.seed, remotes: on?.remotes, lane: on?.lane, audio: { sfx: (n, o) => Audio.sfx(n, o), cheer: s => Audio.cheer(s), say: () => { } },
     level: S.heat, name: S.name || 'Tú', country: S.country, kit: S.kit, ghost: S.ghost && !(d.format === 'doubles' && S.partner === 'papa'), twoP, partner: S.partner, practice, events: onRaceEvent,
     profile: TRAINING_ON || tr ? loadProfile() : null, trainPart: tr?.part || 0,
     resume: resumeData, age: S.age || 16, look: { skin: S.skin | 0, height: S.height || 1 }, mySex: S.cat === 'X' ? (S.edSex || 'M') : null,

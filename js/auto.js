@@ -34,7 +34,7 @@ export class Autopilot {
       if (this.rest) I.release('A'); else I.press('A');
     } else if (id === 'lunges') {
       const ready = ctl.st === 'stand' || (ctl.st === 'up' && ctl.timer > 0.09);
-      if (ready && !ctl.queued && this.t >= this.next) { I.tap(ctl.leg === 'L' ? 'L' : 'R'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
+      if (ready && !ctl.queued && this.t >= this.next) { I.tap(ctl.nextLeg); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
     } else if (id === 'wb') {
       if ((ctl.state === 'ready' || ctl.state === 'catch') && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
     }

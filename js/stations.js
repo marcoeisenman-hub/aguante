@@ -430,7 +430,7 @@ class Lunges extends Station {
     this.t += dt;
     const ef = this.ef, tD = 0.22 / ef ** 0.6, tU = 0.19;
     // ← pierna izquierda, → pierna derecha: hay que alternar, una zancada cada toque
-    const want = this.leg === 'L' ? 'L' : 'R', other = want === 'L' ? 'R' : 'L';
+    const want = this.nextLeg, other = want === 'L' ? 'R' : 'L';
     if (I.pressed(want)) {
       if (this.st === 'stand' || (this.st === 'up' && this.timer > tU * 0.4)) this.queued = true;
     } else if (I.pressed(other) || I.pressed('A')) {
@@ -458,7 +458,9 @@ class Lunges extends Station {
     this.bag.rotation.set(0, (this.sh?.dir ?? 1) > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
   }
   hud() { return { gauge: null, big: this.done.toFixed(0) + ' m', sub: `de 100 m · saco ${this.load.sandbag} kg · carril ${Math.min(5, (this.sh?.lap ?? 0) + 1)}/5` }; }
-  hints() { return [['← →', 'alterna las piernas'], ['', `ahora: ${this.leg === 'L' ? '← izquierda' : '→ derecha'}`]]; }
+  // pierna del próximo toque: de pie, la que sigue; a mitad de zancada, la otra
+  get nextLeg() { return this.st === 'stand' ? this.leg : (this.leg === 'L' ? 'R' : 'L'); }
+  hints() { return [['← →', 'alterna las piernas'], ['', `ahora: ${this.nextLeg === 'L' ? '← izquierda' : '→ derecha'}`]]; }
   cam() { const sh = this.sh || { x: 0, dir: 1 }; const x = this.L.pos.x + sh.x; return { pos: _v.set(x + sh.dir * 2.4, 1.6, this.L.pos.z + 3.2 * (this.L.pos.z < 0 ? 1 : -1)), look: _w.set(x, 0.9, this.L.pos.z) }; }
 }
 
