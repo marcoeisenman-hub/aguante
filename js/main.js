@@ -199,10 +199,11 @@ function openRoom(code) {
   $('#oCodeShow').textContent = room.code;
   const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('sala', room.code); $('#oUrl').value = u.href;
   history.replaceState(null, '', '?sala=' + room.code);
-  room.on('status', st => { $('#oStatus').textContent = st === 'ok' ? 'Conectado. Manda el link a tus amigos.' : st === 'lost' ? 'Se cortó la conexión. Reintentando…' : 'No logro conectar con el servidor de salas. Revisa el internet.'; });
+  room.on('status', st => { $('#oStatus').textContent = st === 'ok' ? 'Conectado. Manda el link a tus amigos.' : st === 'lost' ? 'Se cortó la conexión. Reintentando…' : 'No logro conectar con el servidor de salas. Revisa el internet.'; renderLobby(); });
   room.on('peers', () => { renderLobby(); if (room.isHost) room.send({ t: 'cfg', cfg: hostCfg() }); if (race?.online) for (const id of race.remotes.keys()) if (!room.peers.has(id)) race.dropRemote(id); });
-  room.on('cfg', (m, p) => { if (!room.isHost) { roomCfg = m.cfg; Object.assign(S, { format: m.cfg.format, cat: m.cfg.cat, level: m.cfg.level, heat: m.cfg.heat }); if (S.format === 'doubles' && S.partner === 'p2') S.partner = 'ai'; renderLobby(); } });
-  room.on('start', m => { if (state === 'race' && race?.online) return; launchOnline(m); });
+  const fromLeader = m => room.list()[0]?.id === m.from;
+  room.on('cfg', (m, p) => { if (!room.isHost && fromLeader(m)) { roomCfg = m.cfg; Object.assign(S, { format: m.cfg.format, cat: m.cfg.cat, level: m.cfg.level, heat: m.cfg.heat }); if (S.format === 'doubles' && S.partner === 'p2') S.partner = 'ai'; renderLobby(); } });
+  room.on('start', m => { if (!fromLeader(m) || (state === 'race' && race?.online)) return; if (!Array.isArray(m.people) || !Array.isArray(m.lanes) || !m.cfg) return; launchOnline(m); });
   room.on('st', (m, p) => { if (race?.online) race.applyRemote(m.from, m.s); });
   room.connect().catch(e => { $('#oStatus').textContent = e.message; });
   renderLobby();
@@ -230,7 +231,7 @@ $('#oEdit').onclick = () => show('setup');
 $('#oGo').onclick = () => {
   if (!room?.isHost) return;
   const L = room.list();
-  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, (i * 2 + 1) % 8]), people: L.map(p => ({ id: p.id, name: p.name, kit: p.kit, country: p.country })) };
+  const m = { t: 'start', cfg: hostCfg(), seed: (Math.random() * 2 ** 31) | 0, at: Date.now() + 2500, lanes: L.map((p, i) => [p.id, [1, 3, 5, 7, 0, 2, 4, 6][i % 8]]), people: L.slice(0, 8).map(p => ({ id: p.id, name: String(p.name || 'Atleta').slice(0, 16), kit: (p.kit | 0) % 10, country: String(p.country || 'PAN').slice(0, 3) })) };
   room.send(m); launchOnline(m);
 };
 function launchOnline(m) {
@@ -391,7 +392,7 @@ function hudUpdate(dt) {
   const myPos = st.findIndex(x => x.e.isPlayer) + 1;
   const n = st.length;
   $('#hBoard').innerHTML = `<div class="hd"><span>HEAT · ${race.div.name}</span><span>P${myPos}/${n}</span></div>` +
-    st.slice(0, 9).map((x, i) => `<div class="r ${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><span>${i + 1}</span><span>${escapeHtml(x.e.name.length > 22 ? x.e.name.slice(0, 21) + '…' : x.e.name)}${x.e.isRemote ? ' ●' : ''}</span><span>${x.label}</span></div>`).join('');
+    st.slice(0, 9).map((x, i) => `<div class="r ${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><span>${i + 1}</span><span>${escapeHtml(x.e.name.length > 22 ? x.e.name.slice(0, 21) + '…' : x.e.name)}${x.e.isRemote ? ' ●' : ''}</span><span>${escapeHtml(x.label)}</span></div>`).join('');
   // tarjeta de estación
   const phase = me.phase + me.seg;
   if (phase !== lastPhase) {
@@ -484,7 +485,7 @@ function showResults() {
   $('#rSplits').innerHTML = rows;
   // heat: termina la simulación de la IA para mostrar todos
   $('#rHeat').innerHTML = race.entries.map(e => ({ e, t: e.isRemote && !e.finished ? Infinity : e.total })).sort((a, b) => a.t - b.t)
-    .map((x, i) => `<tr class="${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><td>${i + 1}</td><td>${escapeHtml(x.e.name)} <span class="d">${x.e.country}</span></td><td class="r">${x.t === Infinity ? (x.e.left ? 'salió' : 'en carrera') : fmt(x.t)}</td></tr>`).join('');
+    .map((x, i) => `<tr class="${x.e.isPlayer ? 'me' : ''} ${x.e.ghost ? 'gh' : ''}"><td>${i + 1}</td><td>${escapeHtml(x.e.name)} <span class="d">${escapeHtml(x.e.country)}</span></td><td class="r">${x.t === Infinity ? (x.e.left ? 'salió' : 'en carrera') : fmt(x.t)}</td></tr>`).join('');
   $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} · ${p.why}`).join('  ·  ') : 'Ninguna. Carrera limpia.';
   show('results');
 }

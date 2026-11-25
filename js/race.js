@@ -3,7 +3,7 @@ import { seeded } from './online.js';
 import * as THREE from 'three';
 import { STATIONS, SPLITS, PAPA, NAMES, COUNTRIES, PENALTY, LAPS_PER_KM, fieldDistribution, fmt } from './data.js';
 import { TRACK, trackPos, trackDir, ROX, IN_S, OUT_S, LANES, laneOf } from './world.js';
-import { Athlete } from './athlete.js';
+import { Athlete, ACTIONS } from './athlete.js';
 import { CTRL, REF, aiStation, stationEntry, stationExit, place } from './stations.js';
 import { Cable, MAT } from './equipment.js';
 import { Autopilot } from './auto.js';
@@ -74,7 +74,7 @@ export class Race {
     const heat = this.practice ? 1 : Math.max(1, (div.elite ? 15 : 8) - remotes.length);
     const level = o.level || 'comp';     // 'amateur' | 'comp' | 'elite'
     const used = new Set();
-    const pick = sex => { let n; do n = NAMES[sex][(Math.random() * NAMES[sex].length) | 0]; while (used.has(n) && used.size < 38); used.add(n); return n; };
+    const pick = sex => { let n, tries = 0; do n = NAMES[sex][(Math.random() * NAMES[sex].length) | 0]; while (used.has(n) && ++tries < 60); used.add(n); return n; };
     // tiempos del campo
     const totals = [];
     for (let i = 0; i < heat - 1; i++) {
@@ -213,9 +213,11 @@ export class Race {
     return { x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2), r: +av.group.rotation.y.toFixed(3), a: last[0], ph: +last[1].toFixed(3), rate: +rate.toFixed(3), o: last[2], prog: +st.prog.toFixed(3), lbl: st.label, fin: me.finished, tot: me.total, clk: this.clock };
   }
   applyRemote(rid, m) {
-    const e = this.remotes?.get(rid); if (!e) return;
+    const e = this.remotes?.get(rid); if (!e || !m || !Number.isFinite(m.x) || !Number.isFinite(m.z)) return;
+    if (e.left) { e.left = false; e.members[0].av.group.visible = true; }
+    m.lbl = String(m.lbl || '').slice(0, 12); m.prog = Number(m.prog) || 0; if (typeof m.a !== 'string' || !(m.a in ACTIONS)) m.a = 'run';
     e.tgt = m; e.tgtT = performance.now(); e.prog = m.prog; e.label = m.lbl;
-    if (m.fin && !e.finished) { e.finished = true; e.total = m.tot; this.flash(`${e.name} terminó · ${fmt(m.tot)}`, 'meh', 2.5); this.audio?.cheer(0.5); }
+    if (m.fin && !e.finished && Number.isFinite(m.tot)) { e.finished = true; e.total = m.tot; this.flash(`${e.name} terminó · ${fmt(m.tot)}`, 'meh', 2.5); this.audio?.cheer(0.5); }
     if (!e.seenOnce) { e.seenOnce = true; e.members[0].av.group.position.set(m.x, m.y, m.z); }
   }
   dropRemote(rid) { const e = this.remotes?.get(rid); if (e && !e.finished) { e.left = true; e.label = 'salió'; e.members[0].av.group.visible = false; } }

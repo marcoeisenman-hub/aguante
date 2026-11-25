@@ -86,10 +86,11 @@ export class Room {
   list() { return [this.me, ...this.peers.values()].sort((a, b) => a.joined - b.joined || (a.id < b.id ? -1 : 1)); }
   get isHost() { const h = this.list().find(p => p.host); return h ? h.id === this.me.id : this.list()[0].id === this.me.id; }
   leave() {
-    this.send({ t: 'bye' });
     clearInterval(this.beat);
-    const cs = this.clis; this.clis = []; this.ok = false;
-    setTimeout(() => { for (const x of cs) try { x.cli.end(true); } catch { } }, 250);
+    const cs = this.clis;
+    const close = () => { this.clis = []; this.ok = false; for (const x of cs) try { x.cli.end(false); } catch { } };
+    this.send({ t: 'bye' }).finally(() => setTimeout(close, 300));
+    this.h = {};
   }
 }
 

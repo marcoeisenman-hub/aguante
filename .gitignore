@@ -3,3 +3,4 @@ probe/
 .vercel/
 .DS_Store
 *.log
+.vercel
