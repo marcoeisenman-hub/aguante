@@ -173,7 +173,7 @@ function runPose(p, speed = 1, fatigue = 0) {      // speed 0.6–1.4
     ankleL: RUN.ank(p), ankleR: RUN.ank(pr),
     hipLabd: 3, hipRabd: 3,
     shLflex: -sw * 38 * a, shRflex: sw * 38 * a, shLabd: 14, shRabd: 14,
-    elL: 88 - sw * 18, elR: 88 + sw * 18, grip: 0.5,
+    elL: 88 - sw * 18, elR: 88 + sw * 18, grip: 1,
   };
 }
 // --- Caminar ---
@@ -388,7 +388,7 @@ export class Athlete {
     for (const s of ['L', 'R']) for (const f of this.fingers[s]) {
       const k = this.bind.get(f);
       const thumb = /Finger0/.test(f.name);
-      f.quaternion.copy(k.L).multiply(_q2.setFromAxisAngle(Z, (s === 'L' ? -1 : -1) * grip * (thumb ? 0.35 : 1.15)));
+      f.quaternion.copy(k.L).multiply(_q2.setFromAxisAngle(Z, (s === 'L' ? -1 : 1) * grip * (thumb ? 0.35 : 1.15)));
     }
     // raíz
     const r = b.root, k = this.bind.get(r);

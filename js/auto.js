@@ -17,9 +17,12 @@ export class Autopilot {
   step(ctl, dt) {
     const I = this.I; I.frame(); this.t += dt;
     const id = ctl.id;
-    if (id === 'ski' || id === 'row') {
-      const rate = 7 * (0.9 + this.skill * 0.12);
-      if (this.t >= this.next) { I.tap(this.alt); this.alt = this.alt === 'L' ? 'R' : 'L'; this.next = this.t + 1 / rate * (1 + this.jitter(0.25)); }
+    if (id === 'ski' || id === 'row' || id === 'push' || id === 'pull') {
+      // timing: toca cuando la aguja llega a su objetivo (cerca del inicio del verde, con error según su nivel)
+      if (this.tgt == null || ctl.bT < this.lastB) { const [a, b] = ctl.bZ; this.tgt = a + (b - a) * 0.3 + this.jitter(0.14); }
+      this.lastB = ctl.bT;
+      if (ctl.bT >= this.tgt) { I.tap('A'); this.tgt = null; this.lastB = 0; }
+      return I;
     } else if (id === 'push' || id === 'pull' || id === 'farmers') {
       if (id === 'farmers') {
         if (!ctl.down && ctl.grip < 0.18 + this.jitter(0.05)) { I.tap('A'); I.release('R'); return I; }
@@ -44,7 +47,11 @@ export class Autopilot {
         if (ctl.depth >= this.tgt) I.release(k); else I.press(k);
       } else { I.release('L'); I.release('R'); }
     } else if (id === 'wb') {
-      if ((ctl.state === 'ready' || ctl.state === 'catch') && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
+      if ((ctl.state === 'ready' || ctl.state === 'catch') && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); this.tgt = null; }
+      else if (ctl.state === 'squat') {
+        if (this.tgt == null) { const [a, b] = ctl.zone(); this.tgt = (a + b) / 2 + this.jitter(0.14); }
+        if (ctl.squat >= Math.max(0.36, this.tgt)) { I.tap('A'); this.tgt = 1e9; }
+      }
     }
     return I;
   }

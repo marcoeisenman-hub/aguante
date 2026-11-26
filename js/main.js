@@ -13,7 +13,7 @@ import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, trai
 import { REF } from './stations.js';
 // Entrenar está apagado por ahora (Marco lo pidió el 2026-11-25); el código queda para volver a prenderlo
 const TRAINING_ON = true;
-const VERSION = '2026-11-26a';   // igual que version.json: si el servidor tiene otra, avisamos para recargar
+const VERSION = '2026-11-26b';   // igual que version.json: si el servidor tiene otra, avisamos para recargar
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -583,14 +583,14 @@ function showCard() {
     row: ['1.000 m', 'damper 6'], farmers: ['2 × ' + l.farmers + ' kg', '200 m'], lunges: [l.sandbag + ' kg', '100 m', 'rodilla al piso'], wb: ['100 reps', l.ball + ' kg', 'blanco ' + (l.target ?? (sex === 'F' ? 2.7 : 3)).toFixed(2).replace('.', ',') + ' m'],
   }[st.id];
   const how = {
-    ski: 'Jala con ← → o ESPACIO a ritmo: la aguja en verde. Más rápido que el verde son jalones cortos que cansan. ↑ ↓ cambia el damper.',
-    push: 'Aprieta ← → o ESPACIO lo más rápido que puedas. No dejes que se pare: arrancarlo de nuevo cuesta.',
-    pull: 'Aprieta ← → o ESPACIO lo más rápido que puedas: cada toque es un jalón. Al pasar los 12,5 m corres al otro lado.',
+    ski: 'La aguja sube: toca ESPACIO cuando está en verde = jalón completo. Antes o después rinde menos; si la dejas pasar, pierdes el jalón. Aplastar no cuenta. ↑ ↓ cambia el damper.',
+    push: 'Cada empujón: toca ESPACIO con la aguja en verde. Aplastar no cuenta. No dejes que se pare: arrancarlo de nuevo cuesta.',
+    pull: 'Cada jalón de la cuerda: toca ESPACIO con la aguja en verde. Aplastar no cuenta. Al pasar los 12,5 m corres al otro lado.',
     bbj: 'ESPACIO = burpee. Al subir, ESPACIO otra vez con la aguja en verde = salto largo (~2 m). 80 m = 4 carriles de 20 m.',
-    row: 'Rema con ← → o ESPACIO a ritmo: la aguja en verde. Más rápido que el verde son paladas cortas que cansan. ↑ ↓ cambia el damper.',
+    row: 'La aguja sube: toca ESPACIO cuando está en verde = palada completa. Antes o después rinde menos; si la dejas pasar, la pierdes. ↑ ↓ cambia el damper.',
     farmers: 'Mantén → para caminar. Si el agarre se acaba se caen: suéltalas antes con ESPACIO. 200 m = 10 carriles de 20 m.',
     lunges: 'Mantén ← para bajar y suelta en verde (rodilla al piso); luego → con la otra pierna. Soltar antes = no rep. 100 m = 5 carriles de 20 m.',
-    wb: 'Cada toque de ESPACIO = sentadilla y lanzamiento. Toca justo cuando atrapas la pelota para ir sin pausas.',
+    wb: 'ESPACIO = bajas a la sentadilla y sube la aguja de fuerza. ESPACIO otra vez en verde = la pelota pega en el blanco. Fuera del verde: no rep.',
   }[st.id];
   $('#hCard').innerHTML = `<div class="n">ESTACIÓN ${idx + 1} DE 8</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${how}</p>`;
   $('#hCard').classList.add('show'); cardT = race.practice ? 5 : 6; cardShown = true;
@@ -687,6 +687,7 @@ function erf(x) { const t = 1 / (1 + 0.3275911 * Math.abs(x)); const y = 1 - (((
 
 // ---------------- Cámara de carrera ----------------
 function raceCamera(dt) {
+  if (window.__camFix) return window.__camFix(camPos, camLook);   // solo para pruebas
   const me = race.me, m = race.active, av = m.av;
   const p = av.group.position;
   let pos, look, k = 3.5;

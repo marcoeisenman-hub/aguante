@@ -76,7 +76,7 @@ b{font-weight:700}
 .strip i{width:22px;height:6px;border-radius:2px;background:rgba(255,255,255,.15)}
 .strip i.st{width:14px}
 .strip i.done{background:#e7e7ea}.strip i.now{background:var(--acc)}
-.tl{position:absolute;top:28px;left:24px}
+.tl{position:absolute;top:18px;left:14px;padding:10px 16px 10px 12px;border-radius:12px;background:rgba(8,9,11,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .clock{font-size:54px;font-weight:800;letter-spacing:-.02em;line-height:1;text-shadow:0 2px 12px rgba(0,0,0,.6)}
 .segn{font-size:18px;font-weight:700;margin-top:4px}
 .div{font-size:13px;color:#c4c5ca;margin-top:2px}
