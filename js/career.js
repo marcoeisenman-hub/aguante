@@ -46,18 +46,18 @@ export function trainsLeft(p) { return Math.max(0, p.tokens ?? DAILY); }
 
 // cuánto sube: más difícil cerca de 100, menos si estás cansado; q = qué tan bien hiciste el mini-juego (0..1)
 export function train(p, t, q) {
-  q = Math.max(0, Math.min(1, q));
+  q = Math.round(Math.max(0, Math.min(1, q)) * 100) / 100;
   const tired = Math.max(0.25, 1 - p.fatigue / 130);
   const up = {}, before = overall(p);
-  if (drillWait(p, t) > 0) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }
+  if (drillWait(p, t) > 0) { p.lastOvr = [before, before]; p.noQuota = true; p.lastTier = '–'; p.lastEq = null; return {}; }
   if (t.kind !== 'rest') {
-    if (trainsLeft(p) <= 0) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }   // sin entrenos (p. ej. otra pestaña)
+    if (trainsLeft(p) <= 0) { p.lastOvr = [before, before]; p.noQuota = true; p.lastTier = '–'; p.lastEq = null; return {}; }   // sin entrenos (p. ej. otra pestaña)
     if (p.today !== today()) { if (p.today) p.day++; p.today = today(); }   // "Día" = días reales en que entrenaste
     p.tokens = trainsLeft(p) - 1;
   }
   p.noQuota = false;
   p.lastT = { ...(p.lastT || {}), [t.id]: Date.now() };
-  const eq = q * tired, tier = tierOf(eq);
+  const eq = Math.round(q * tired * 100) / 100, tier = tierOf(eq);   // la nota se decide con el % que ves
   p.lastTier = tier[0]; p.lastEq = eq;
   // subir N de nivel = sumar 7·N puntos de cualidades (nivel = promedio de las 7), repartidos en lo que trabaja este drill
   let pts = STATS.length * tier[2] * (before >= 85 ? 0.5 : 1);
