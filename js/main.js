@@ -120,7 +120,7 @@ function show(id) {
   if (id === 'records') renderRecords();
   if (id === 'practice') renderPractice();
   if (id === 'train') renderTrain();
-  clearInterval(trainTick); if (id === 'train') trainTick = setInterval(() => { if ($('#train').classList.contains('show')) renderTrain(); }, 30e3);   // esperas y cupo al día
+  clearInterval(trainTick); if (id === 'train') trainTick = setInterval(() => { if (!$('#train').classList.contains('show')) return; const f = document.activeElement?.dataset?.t; renderTrain(); if (f) $(`#tList [data-t=${f}]`)?.focus(); }, 30e3);   // esperas y cupo al día
   editorOpen = id === 'editor'; if (editorOpen) renderEditor(); else dropPreview();
 }
 for (const b of $$('[data-go]')) b.addEventListener('click', () => { initAudio(); Audio.sfx('ui'); show(b.dataset.go); });
