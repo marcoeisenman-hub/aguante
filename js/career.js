@@ -24,9 +24,9 @@ export const TRAININGS = [
   { id: 'descanso', name: 'Descanso y movilidad', kind: 'rest', gains: { recup: 0.6 }, fatigue: -45 },
 ];
 
-const base = () => ({ v: 2, day: 1, fatigue: 0, sessions: 0, races: 0, stats: Object.fromEntries(STATS.map(s => [s.id, 50])), log: [] });
+const base = () => ({ v: 3, day: 1, fatigue: 0, sessions: 0, races: 0, stats: Object.fromEntries(STATS.map(s => [s.id, 50])), log: [] });
 export function loadProfile() {
-  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) { for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } return p; } } catch { }
+  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) { for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } if (p.v < 3) { p.day = 1; p.v = 3; saveProfile(p); } return p; } } catch { }
   return base();
 }
 export function saveProfile(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { } }
@@ -43,8 +43,8 @@ export function train(p, t, q) {
   q = Math.max(0, Math.min(1, q));
   const tired = Math.max(0.25, 1 - p.fatigue / 130);
   const up = {}, before = overall(p);
-  if (p.today !== today()) { if (p.today) p.day++; p.today = today(); p.todayN = 0; }   // "Día" = días reales en que entrenaste
   if (t.kind !== 'rest') {
+    if (p.today !== today()) { if (p.today) p.day++; p.today = today(); p.todayN = 0; }   // "Día" = días reales en que entrenaste
     if ((p.todayN || 0) >= DAILY) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }   // sin cupo (p. ej. otra pestaña)
     p.todayN = (p.todayN || 0) + 1;
   }
@@ -57,9 +57,12 @@ export function train(p, t, q) {
   }
   // un entreno bien hecho siempre te sube al menos 1 de nivel (hasta 95)
   if (t.kind !== 'rest' && q >= 0.35 && before < 95 && overall(p) <= before) {
-    let keys = Object.keys(t.gains).filter(k => p.stats[k] < 100);
-    if (!keys.length) keys = STATS.map(s => s.id).filter(k => p.stats[k] < 100);   // si esa cualidad ya está al máximo, sube otra
-    for (let i = 0; i < 40 && overall(p) <= before; i++) for (const k of keys) { if (p.stats[k] < 100) { p.stats[k] = +Math.min(100, p.stats[k] + 0.5).toFixed(1); up[k] = +((up[k] || 0) + 0.5).toFixed(1); } }
+    for (let i = 0; i < 80 && overall(p) <= before; i++) {
+      let keys = Object.keys(t.gains).filter(k => p.stats[k] < 100);
+      if (!keys.length) keys = STATS.map(s => s.id).filter(k => p.stats[k] < 100);   // si esa cualidad ya está al máximo, sube otra
+      if (!keys.length) break;
+      for (const k of keys) { const s0 = p.stats[k]; p.stats[k] = +Math.min(100, s0 + 0.5).toFixed(1); up[k] = +((up[k] || 0) + p.stats[k] - s0).toFixed(1); }
+    }
   }
   p.lastOvr = [before, overall(p)];
   p.fatigue = Math.max(0, Math.min(100, p.fatigue + t.fatigue * (t.kind === 'rest' ? 1 : 0.7 + 0.3 * q)));
