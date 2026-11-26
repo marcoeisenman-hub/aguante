@@ -9,10 +9,10 @@ import { Race, GEARS, SEG_NAMES } from './race.js';
 import { division, validDivision, STATIONS, RECORDS, fmt, COUNTRIES, fieldDistribution, PAPA, LOADS, ageGroup as agOf, ageFactor } from './data.js';
 import { Audio } from './audio.js';
 import { Room, newCode } from './online.js';
-import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace, heatRange } from './career.js';
+import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace, heatRange, trainsLeft, DAILY } from './career.js';
 import { REF } from './stations.js';
 // Entrenar está apagado por ahora (Marco lo pidió el 2026-11-25); el código queda para volver a prenderlo
-const TRAINING_ON = false;
+const TRAINING_ON = true;
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -243,13 +243,16 @@ function renderTrain() {
   $('#tFatNote').textContent = P.fatigue >= 70 ? 'Muy cansado: entrenar ahora rinde poco y en carrera arrancas con menos energía. Descansa.' : P.fatigue >= 40 ? 'Algo cansado: un día de descanso te ayuda.' : 'Fresco para entrenar o competir.';
   $('#tStats').innerHTML = STATS.map(st => `<div class="tst" title="${st.desc}"><span>${st.name}</span><div class="mbar"><i style="width:${P.stats[st.id]}%"></i></div><b>${Math.round(P.stats[st.id])}</b></div>`).join('');
   $('#tList').innerHTML = TRAININGS.map(t => `<button class="btn" data-t="${t.id}">${t.name}<small>${Object.keys(t.gains).map(k => STATS.find(x => x.id === k).name).join(' · ')}${t.fatigue > 0 ? ' · cansa ' + t.fatigue : ' · recupera'}</small></button>`).join('');
-  for (const b of $$('#tList button')) b.onclick = () => startTraining(TRAININGS.find(t => t.id === b.dataset.t));
+  const left = trainsLeft(P);
+  $('#tLeft').innerHTML = left ? `Entrenos de hoy: <b>${left}</b> de ${DAILY}` : `<span style="color:var(--meh)">Ya hiciste los ${DAILY} entrenos de hoy. Vuelve mañana (puedes descansar o correr).</span>`;
+  for (const b of $$('#tList button')) { const t = TRAININGS.find(t => t.id === b.dataset.t); b.disabled = !left && t.kind !== 'rest'; b.onclick = () => startTraining(t); }
   $('#tLog').innerHTML = P.log.length ? P.log.map(l => `<div>Día ${l.day} · ${escapeHtml(l.t)}${l.q != null && !/Descanso/.test(l.t) ? ' · ' + l.q + '%' : ''} <span>${Object.entries(l.up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(', ')}</span></div>`).join('') : '<div>Todavía no entrenaste.</div>';
 }
 $('#tReset').onclick = () => { if ($('#tReset').dataset.sure) { resetProfile(); delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; renderTrain(); } else { $('#tReset').dataset.sure = 1; $('#tReset').textContent = '¿Seguro? Pulsa otra vez'; setTimeout(() => { delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; }, 3000); } };
 function startTraining(t) {
   initAudio(); Audio.sfx('ui');
   if (t.kind === 'rest') { const P = loadProfile(); train(P, t, 1); Audio.sfx('good'); renderTrain(); return; }
+  if (!trainsLeft(loadProfile())) { renderTrain(); return; }
   if (t.kind === 'station') { startRace(t.st, null, t); return; }
   tapGame(t);
 }
@@ -287,7 +290,7 @@ function tapHit() {
     tap.done = true;
     const q = tap.hits.reduce((a, b) => a + b, 0) / tap.t.reps;
     const P = loadProfile(); const up = train(P, tap.t, q);
-    $('#tapTip').innerHTML = `Calidad <b>${Math.round(q * 100)}%</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
+    $('#tapTip').innerHTML = `Calidad <b>${Math.round(q * 100)}%</b> · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
     const cur = tap;
     setTimeout(() => { if (tap === cur) { $('#tapBox').hidden = true; tap = null; } renderTrain(); }, 1800);
   }
@@ -408,7 +411,7 @@ function startRace(practice = null, on = null, tr = null, resumeData = null) {
   });
   race.me.age = race.age || S.age; race.usedProfile = TRAINING_ON && !practice && !tr;
   if (on) race.countdown += (on.wait || 0) / 1000;
-  hudInit();
+  hudInit(); clearTags();
   show(null); $('#hud').hidden = false; $('#touch').hidden = !isTouch;
   $('#tSwap').style.display = d.format === 'doubles' ? '' : 'none';
   state = 'race';
@@ -593,7 +596,7 @@ function showResults() {
     const P = loadProfile(); const up = train(P, t, q);
     $('#rDiv').textContent = 'ENTRENAMIENTO · DÍA ' + (P.day - 1);
     $('#rTime').textContent = fmt(got);
-    $('#rPos').innerHTML = `${escapeHtml(t.name)} · calidad <b>${Math.round(q * 100)}%</b> · nivel <b>${overall(P)}</b> · fatiga ${Math.round(P.fatigue)}%`;
+    $('#rPos').innerHTML = `${escapeHtml(t.name)} · calidad <b>${Math.round(q * 100)}%</b> · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · quedan ${trainsLeft(P)} hoy · fatiga ${Math.round(P.fatigue)}%`;
     $('#rBadges').innerHTML = Object.entries(up).map(([k, v]) => `<span class="acc">${STATS.find(x => x.id === k).name} +${v}</span>`).join('');
     $('#rSplits').innerHTML = ''; $('#rHeat').innerHTML = '';
     $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';
@@ -683,6 +686,35 @@ function raceCamera(dt) {
   if (![camPos.x, camPos.y, camPos.z, camLook.x, camLook.y, camLook.z].every(Number.isFinite)) { camPos.copy(pos); camLook.copy(look); }
 }
 
+// ---------------- Nombre y nivel sobre cada rival ----------------
+const tagEls = new Map(), _tp = new THREE.Vector3();
+function clearTags() { $('#tags').innerHTML = ''; tagEls.clear(); }
+function tagsUpdate() {
+  const box = $('#tags'), W = innerWidth, H = innerHeight, near = [];
+  for (const e of race.entries) {
+    if (e.isPlayer || e.left) continue;
+    const m = e.members.find(m => m.av.group.visible); if (!m) continue;
+    _tp.copy(m.av.group.position); _tp.y += 2.05;
+    const d = _tp.distanceTo(camera.position); if (d > 26 || d < 2.5) continue;
+    _tp.project(camera); if (_tp.z > 1 || Math.abs(_tp.x) > 1.1 || Math.abs(_tp.y) > 1.1) continue;
+    near.push({ e, d, x: (_tp.x + 1) / 2 * W, y: (1 - _tp.y) / 2 * H });
+  }
+  near.sort((a, b) => a.d - b.d); const show = new Set(near.slice(0, 7).map(n => n.e));
+  for (const [e, el] of tagEls) if (!show.has(e)) el.style.display = 'none';
+  for (const n of near.slice(0, 7)) {
+    let el = tagEls.get(n.e);
+    if (!el) {
+      el = document.createElement('div'); el.className = 'tag' + (n.e.ghost ? ' gh' : '');
+      const nm = n.e.ghost ? 'Papá · Tampa' : (n.e.members.length > 1 && !n.e.isRemote ? n.e.members.map(m => m.name.split(' ')[0]).join(' / ') : n.e.name);
+      el.innerHTML = `${escapeHtml(nm.length > 20 ? nm.slice(0, 19) + '…' : nm)}${n.e.ovr ? `<b>${ovrTxt(n.e.ovr)}</b>` : ''}`;
+      box.appendChild(el); tagEls.set(n.e, el);
+    }
+    const s = Math.max(0.7, Math.min(1.15, 9 / n.d));
+    el.style.display = ''; el.style.opacity = Math.min(1, (26 - n.d) / 6).toFixed(2);
+    el.style.transform = `translate(${n.x.toFixed(0)}px,${n.y.toFixed(0)}px) translate(-50%,-100%) scale(${s.toFixed(2)})`;
+  }
+}
+
 // ---------------- Bucle ----------------
 let last = performance.now(), T = 0, slowT = 0, boardT = 0;
 function loop(now) {
@@ -700,6 +732,7 @@ function loop(now) {
     Audio.music(race.me.phase === 'run' && race.me.gear >= 3 ? 3 : 2);
     raceCamera(dt);
     hudUpdate(dt);
+    camera.position.copy(camPos); camera.lookAt(camLook); camera.updateMatrixWorld(); tagsUpdate();
     world.update(dt, T, race.active.av.group.position);
     boardT -= dt; if (boardT <= 0) { boardT = 1; drawJumbo(); }
   } else if ((state === 'results' || state === 'paused') && race) {

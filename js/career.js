@@ -33,17 +33,29 @@ export function saveProfile(p) { try { localStorage.setItem(KEY, JSON.stringify(
 export function resetProfile() { const p = base(); saveProfile(p); return p; }
 export const overall = p => Math.round(STATS.reduce((a, s) => a + p.stats[s.id], 0) / STATS.length);
 
+// entrenos limitados: 3 por día (el descanso no cuenta)
+export const DAILY = 3;
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+export function trainsLeft(p) { return p.today === today() ? Math.max(0, DAILY - (p.todayN || 0)) : DAILY; }
+
 // cuánto sube: más difícil cerca de 100, menos si estás cansado; q = qué tan bien hiciste el mini-juego (0..1)
 export function train(p, t, q) {
   q = Math.max(0, Math.min(1, q));
   const tired = Math.max(0.25, 1 - p.fatigue / 130);
-  const up = {};
+  const up = {}, before = overall(p);
+  if (t.kind !== 'rest') { if (p.today !== today()) { p.today = today(); p.todayN = 0; } p.todayN = (p.todayN || 0) + 1; }
   for (const [k, g] of Object.entries(t.gains)) {
     const s = p.stats[k];
-    const d = t.kind === 'rest' ? g : g * (0.35 + 0.65 * q) * tired * (1.15 - s / 115);
+    const d = t.kind === 'rest' ? g : g * 1.6 * (0.35 + 0.65 * q) * tired * (1.15 - s / 115);
     const nv = Math.min(100, s + Math.max(0, d));
     up[k] = +(nv - s).toFixed(1); p.stats[k] = +nv.toFixed(1);
   }
+  // un entreno bien hecho siempre te sube al menos 1 de nivel (hasta 95)
+  if (t.kind !== 'rest' && q >= 0.35 && before < 95 && overall(p) <= before) {
+    const keys = Object.keys(t.gains);
+    for (let i = 0; i < 40 && overall(p) <= before; i++) for (const k of keys) { if (p.stats[k] < 100) { p.stats[k] = +Math.min(100, p.stats[k] + 0.5).toFixed(1); up[k] = +((up[k] || 0) + 0.5).toFixed(1); } }
+  }
+  p.lastOvr = [before, overall(p)];
   p.fatigue = Math.max(0, Math.min(100, p.fatigue + t.fatigue * (t.kind === 'rest' ? 1 : 0.7 + 0.3 * q)));
   if (t.kind !== 'rest') { p.sessions++; } else p.fatigue = Math.max(0, p.fatigue);
   p.day++;
