@@ -300,7 +300,7 @@ function tapHit() {
     tap.done = true;
     const q = tap.hits.reduce((a, b) => a + b, 0) / tap.t.reps;
     const P = loadProfile(); const up = train(P, tap.t, q);
-    $('#tapTip').innerHTML = P.noQuota ? 'Este entreno ya no estaba disponible: no cuenta.' : `<b class="tier t${P.lastTier}">${P.lastTier}</b> Calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && P.lastEq < q - 0.005 ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
+    $('#tapTip').innerHTML = P.noQuota ? 'Este entreno ya no estaba disponible: no cuenta.' : `<b class="tier t${P.lastTier}">${P.lastTier}</b> Calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && Math.round(P.lastEq * 100) < Math.round(q * 100) ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
     const cur = tap;
     setTimeout(() => { if (tap === cur) { $('#tapBox').hidden = true; tap = null; } renderTrain(); }, 1800);
   }
@@ -623,7 +623,7 @@ function showResults() {
     const P = loadProfile(); const up = train(P, t, q);
     $('#rDiv').textContent = 'ENTRENAMIENTO · DÍA ' + P.day;
     $('#rTime').textContent = fmt(got);
-    $('#rPos').innerHTML = `${escapeHtml(t.name)} · <b class="tier t${P.lastTier}">${P.lastTier}</b> calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && P.lastEq < q - 0.005 ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · te quedan ${trainsLeft(P)} entrenos · fatiga ${Math.round(P.fatigue)}%`;
+    $('#rPos').innerHTML = `${escapeHtml(t.name)} · <b class="tier t${P.lastTier}">${P.lastTier}</b> calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && Math.round(P.lastEq * 100) < Math.round(q * 100) ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · te quedan ${trainsLeft(P)} entrenos · fatiga ${Math.round(P.fatigue)}%`;
     $('#rBadges').innerHTML = Object.entries(up).map(([k, v]) => `<span class="acc">${STATS.find(x => x.id === k).name} +${v}</span>`).join('');
     $('#rSplits').innerHTML = ''; $('#rHeat').innerHTML = '';
     $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';
