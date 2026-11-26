@@ -202,7 +202,7 @@ b{font-weight:700}
 
 .ovr{font-style:normal;font-size:10px;font-weight:800;background:rgba(255,229,0,.16);color:var(--acc);border-radius:4px;padding:1px 4px;margin-left:4px;vertical-align:1px}
 
-#tags{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:1}
+#tags{position:fixed;inset:0;pointer-events:none;overflow:hidden}
 #tags .tag{position:absolute;left:0;top:0;white-space:nowrap;font-size:12px;font-weight:700;color:#fff;background:rgba(10,11,14,.62);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:2px 6px;transform-origin:50% 100%;text-shadow:0 1px 2px #000}
 #tags .tag b{margin-left:5px;color:var(--acc);font-weight:900}
 #tags .tag.gh{background:rgba(40,90,160,.55)}

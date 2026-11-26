@@ -43,7 +43,12 @@ export function train(p, t, q) {
   q = Math.max(0, Math.min(1, q));
   const tired = Math.max(0.25, 1 - p.fatigue / 130);
   const up = {}, before = overall(p);
-  if (t.kind !== 'rest') { if (p.today !== today()) { p.today = today(); p.todayN = 0; } p.todayN = (p.todayN || 0) + 1; }
+  if (p.today !== today()) { if (p.today) p.day++; p.today = today(); p.todayN = 0; }   // "Día" = días reales en que entrenaste
+  if (t.kind !== 'rest') {
+    if ((p.todayN || 0) >= DAILY) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }   // sin cupo (p. ej. otra pestaña)
+    p.todayN = (p.todayN || 0) + 1;
+  }
+  p.noQuota = false;
   for (const [k, g] of Object.entries(t.gains)) {
     const s = p.stats[k];
     const d = t.kind === 'rest' ? g : g * 1.6 * (0.35 + 0.65 * q) * tired * (1.15 - s / 115);
@@ -52,21 +57,21 @@ export function train(p, t, q) {
   }
   // un entreno bien hecho siempre te sube al menos 1 de nivel (hasta 95)
   if (t.kind !== 'rest' && q >= 0.35 && before < 95 && overall(p) <= before) {
-    const keys = Object.keys(t.gains);
+    let keys = Object.keys(t.gains).filter(k => p.stats[k] < 100);
+    if (!keys.length) keys = STATS.map(s => s.id).filter(k => p.stats[k] < 100);   // si esa cualidad ya está al máximo, sube otra
     for (let i = 0; i < 40 && overall(p) <= before; i++) for (const k of keys) { if (p.stats[k] < 100) { p.stats[k] = +Math.min(100, p.stats[k] + 0.5).toFixed(1); up[k] = +((up[k] || 0) + 0.5).toFixed(1); } }
   }
   p.lastOvr = [before, overall(p)];
   p.fatigue = Math.max(0, Math.min(100, p.fatigue + t.fatigue * (t.kind === 'rest' ? 1 : 0.7 + 0.3 * q)));
   if (t.kind !== 'rest') { p.sessions++; } else p.fatigue = Math.max(0, p.fatigue);
-  p.day++;
   // los días pasan: se recupera un poco solo
   p.fatigue = Math.max(0, p.fatigue - 6);
-  p.log.unshift({ day: p.day - 1, t: t.name, q: Math.round(q * 100), up });
+  p.log.unshift({ day: p.day, t: t.name, q: Math.round(q * 100), up });
   p.log = p.log.slice(0, 12);
   saveProfile(p);
   return up;
 }
-export function afterRace(p) { p.races++; p.fatigue = Math.min(100, p.fatigue + 35); p.day++; saveProfile(p); }
+export function afterRace(p) { p.races++; p.fatigue = Math.min(100, p.fatigue + 35); saveProfile(p); }
 
 // ---------- Nivel de los bots: misma escala que tu atleta ----------
 // Un atleta nivel 50 que hace bien las estaciones termina cerca del punto medio entre el mejor y la mediana del campo.
