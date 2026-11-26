@@ -465,7 +465,7 @@ function onRaceEvent(type, data) {
     // premio de entrenos con tu puesto final real (los tiempos de la IA ya se saben; amigos solo si ya terminaron). Papá fantasma no cuenta
     if (race.usedProfile && !race.prized) {
       const me = race.me, ahead = race.entries.filter(e => !e.isPlayer && !e.ghost && (e.isRemote ? e.finished && e.total < me.total : e.total < me.total)).length;
-      race.prized = true; race.prize = afterRace(loadProfile(), ahead + 1);
+      race.prized = true; race.prizePos = ahead + 1; race.prize = afterRace(loadProfile(), ahead + 1);
     }
     const tryResults = () => { if (!race || race.me !== data) return; if (state === 'paused') return setTimeout(tryResults, 500); showResults(); };
     setTimeout(tryResults, 2600);
@@ -646,7 +646,7 @@ function showResults() {
   $('#rPos').innerHTML = `Puesto <b>${pos}</b> de ${st.length} en el heat (grupo ${ag}) · aprox. <b>${est}</b> de ${size} en ${d.name}${!d.elite ? ` · grupo de edad ${ag}: aprox. <b>${estA}</b> de ${agSize}` : ''}`;
   // badges
   const badges = [];
-  if (race.usedProfile) badges.push([prize ? `+${prize} entreno${prize > 1 ? 's' : ''}` : 'Sin entrenos (podio = entrenos)', prize ? 'acc' : '']);
+  if (race.usedProfile) badges.push([(prize ? `+${prize} entreno${prize > 1 ? 's' : ''}` : 'Sin entrenos (podio = entrenos)') + (race.prizePos ? ` · ${race.prizePos}.º con tiempo oficial` : ''), prize ? 'acc' : '']);
   const rec = store.get('aguanteRecords', {});
   const prev = rec[d.name];
   if (!prev || me.total < prev.best) badges.push(['¡Mejor marca!', 'acc']);
