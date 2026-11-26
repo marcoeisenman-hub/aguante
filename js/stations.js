@@ -76,13 +76,12 @@ function beatStep(st, dt, I) {
   const seen = st.bT;                                   // la aguja que el jugador vio al tocar
   st.bT += dt / st.bP;
   if (I.pressed('A') || I.pressed('L') || I.pressed('R')) {
-    st.bT = seen;
-    if (st.bT < 0.25) {                                   // aplastando: no cuenta
+    if (seen < 0.25) {                                   // aplastando: no cuenta
       if (++st.bSpam >= 2 && (!st._wf || st.t - st._wf > 1)) { st._wf = st.t; st.race.flash('¡Espera el verde!', 'meh', 0.7); }
       return null;
     }
     st.bSpam = 0;
-    const [a, b] = beatZone(st), x = Math.min(1, st.bT), dist = x < a ? a - x : x > b ? x - b : 0;
+    const [a, b] = beatZone(st), x = Math.min(1, seen), dist = x < a ? a - x : x > b ? x - b : 0;
     st.bT = 0; st.lastQ = Math.max(0.2, 1 - dist * 5);
     return st.lastQ;
   }
