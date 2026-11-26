@@ -687,7 +687,7 @@ function erf(x) { const t = 1 / (1 + 0.3275911 * Math.abs(x)); const y = 1 - (((
 
 // ---------------- Cámara de carrera ----------------
 function raceCamera(dt) {
-  if (window.__camFix) return window.__camFix(camPos, camLook);   // solo para pruebas
+  if (typeof window.__camFix === 'function') return window.__camFix(camPos, camLook);   // solo para pruebas
   const me = race.me, m = race.active, av = m.av;
   const p = av.group.position;
   let pos, look, k = 3.5;

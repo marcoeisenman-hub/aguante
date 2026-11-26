@@ -23,14 +23,10 @@ export class Autopilot {
       this.lastB = ctl.bT;
       if (ctl.bT >= this.tgt) { I.tap('A'); this.tgt = null; this.lastB = 0; }
       return I;
-    } else if (id === 'push' || id === 'pull' || id === 'farmers') {
-      if (id === 'farmers') {
-        if (!ctl.down && ctl.grip < 0.18 + this.jitter(0.05)) { I.tap('A'); I.release('R'); return I; }
-        if (ctl.down) { I.release('R'); if (ctl.grip > 0.85) I.tap('A'); return I; }
-        I.press('R'); return I;
-      }
-      const rate = (id === 'farmers' ? 3.6 : (id === 'push' || id === 'pull') ? 7 : 4.4) * (0.9 + this.skill * 0.12);
-      if (this.t >= this.next) { I.tap(this.alt); this.alt = this.alt === 'L' ? 'R' : 'L'; this.next = this.t + 1 / rate * (1 + this.jitter(0.25)); }
+    } else if (id === 'farmers') {
+      if (!ctl.down && ctl.grip < 0.18 + this.jitter(0.05)) { I.tap('A'); I.release('R'); return I; }
+      if (ctl.down) { I.release('R'); if (ctl.grip > 0.85) I.tap('A'); return I; }
+      I.press('R'); return I;
     } else if (id === 'bbj') {
       // burpee; al saltar pulsa cerca del centro del verde (con error según su nivel). Muy cansado: respira de pie
       if (ctl.me.energy < 18) this.rest = true; else if (ctl.me.energy > 35) this.rest = false;

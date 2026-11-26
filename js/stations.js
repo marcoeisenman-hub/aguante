@@ -73,8 +73,10 @@ const BEAT_PERF = 0.74;                 // dónde cae (en promedio) un toque per
 function beatInit(st, P, zone = [0.62, 0.86]) { st.bP = P; st.bT = 0; st.bZ = zone; st.bSpam = 0; st.lastQ = 1; }
 function beatZone(st) { const [a, b] = st.bZ, w = (b - a) * lerp(0.7, 1, clamp(st.ef, 0, 1)), c = (a + b) / 2; return [c - w / 2, c + w / 2]; }
 function beatStep(st, dt, I) {
+  const seen = st.bT;                                   // la aguja que el jugador vio al tocar
   st.bT += dt / st.bP;
   if (I.pressed('A') || I.pressed('L') || I.pressed('R')) {
+    st.bT = seen;
     if (st.bT < 0.25) {                                   // aplastando: no cuenta
       if (++st.bSpam >= 2 && (!st._wf || st.t - st._wf > 1)) { st._wf = st.t; st.race.flash('¡Espera el verde!', 'meh', 0.7); }
       return null;
@@ -546,12 +548,11 @@ class WallBalls extends Station {
       this.ph = 0;
       if (this.queued) { this.queued = false; this.state = 'squat'; this.squat = 0; this.fire = false; }
     } else if (this.state === 'squat') {
-      this.squat = Math.min(1.1, this.squat + dt / tW);
+      if (!this.fire) this.squat = Math.min(1.1, this.squat + dt / tW);   // al tocar, vale la aguja que se veía
       this.ph = Math.min(1, this.squat) * 0.33;
       if (this.fire || this.squat >= 1.1) {
         const [a, b] = this.zone(), x = Math.min(1, this.squat);
-        this.throwQ = this.fire ? (x >= a && x <= b ? 0.7 : x < a ? 0.7 - (a - x) * 1.4 : 0.7 - (x - b) * 1.4) : 0.3;
-        if (this.throwQ >= a) this.throwQ = Math.max(this.throwQ, a);   // en verde siempre llega
+        this.throwQ = this.fire && x >= a && x <= b ? 0.7 : 0.3;          // fuera del verde no llega: no rep
         this.state = 'throw'; this.fly = 0; this.spend(0.142 / this.lf); this.race.sfx('ballThrow');
       }
     } else if (this.state === 'throw') {
