@@ -26,7 +26,7 @@ export const TRAININGS = [
 
 const base = () => ({ v: 3, day: 1, fatigue: 0, sessions: 0, races: 0, stats: Object.fromEntries(STATS.map(s => [s.id, 50])), log: [] });
 export function loadProfile() {
-  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) { for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } if (p.v < 3) { p.day = 1; p.v = 3; saveProfile(p); } return p; } } catch { }
+  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) { for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } if (p.v < 3) { p.day = 1; p.log = []; if (!p.todayN) delete p.today; p.v = 3; saveProfile(p); } return p; } } catch { }
   return base();
 }
 export function saveProfile(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { } }
