@@ -13,6 +13,7 @@ import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, trai
 import { REF } from './stations.js';
 // Entrenar está apagado por ahora (Marco lo pidió el 2026-11-25); el código queda para volver a prenderlo
 const TRAINING_ON = true;
+const VERSION = '2026-11-26a';   // igual que version.json: si el servidor tiene otra, avisamos para recargar
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -254,7 +255,7 @@ function renderTrain() {
   const left = trainsLeft(P);
   $('#tLeft').innerHTML = (left ? `Entrenos disponibles: <b>${left}</b>` : `<span style="color:var(--meh)">No te quedan entrenos.</span>`) + ' · gana más en carrera: 1.º +3, 2.º +2, 3.º +1';
   for (const b of $$('#tList button')) { const t = TRAININGS.find(t => t.id === b.dataset.t); b.disabled = drillWait(P, t) > 0 || (!left && t.kind !== 'rest'); b.onclick = () => startTraining(t); }
-  $('#tLog').innerHTML = P.log.length ? P.log.map(l => `<div>Día ${l.day} · ${escapeHtml(l.t)}${l.q != null && !/Descanso/.test(l.t) ? ' · ' + l.q + '%' : ''} <span>${Object.entries(l.up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(', ')}</span></div>`).join('') : '<div>Todavía no entrenaste.</div>';
+  $('#tLog').innerHTML = P.log.length ? P.log.map(l => `<div>Día ${l.day} · ${l.tier ? `<b class="tier t${l.tier}">${l.tier}</b> ` : ''}${escapeHtml(l.t)}${l.q != null && !/Descanso/.test(l.t) ? ' · ' + l.q + '%' : ''} <span>${Object.entries(l.up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(', ')}</span></div>`).join('') : '<div>Todavía no entrenaste.</div>';
 }
 $('#tReset').onclick = () => { if ($('#tReset').dataset.sure) { resetProfile(); delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; renderTrain(); } else { $('#tReset').dataset.sure = 1; $('#tReset').textContent = '¿Seguro? Pulsa otra vez'; setTimeout(() => { delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; }, 3000); } };
 function startTraining(t) {
@@ -299,7 +300,7 @@ function tapHit() {
     tap.done = true;
     const q = tap.hits.reduce((a, b) => a + b, 0) / tap.t.reps;
     const P = loadProfile(); const up = train(P, tap.t, q);
-    $('#tapTip').innerHTML = P.noQuota ? 'Este entreno ya no estaba disponible: no cuenta.' : `Calidad <b>${Math.round(q * 100)}%</b> · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
+    $('#tapTip').innerHTML = P.noQuota ? 'Este entreno ya no estaba disponible: no cuenta.' : `<b class="tier t${P.lastTier}">${P.lastTier}</b> Calidad <b>${Math.round(q * 100)}%</b> · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
     const cur = tap;
     setTimeout(() => { if (tap === cur) { $('#tapBox').hidden = true; tap = null; } renderTrain(); }, 1800);
   }
@@ -455,6 +456,14 @@ function renderResume() {
 }
 $('#hResume').onclick = () => { const r = savedRace(); if (!r) return renderResume(); initAudio(); Object.assign(S, r.S); store.set('aguanteSetup', S); startRace(null, null, null, r); };
 renderResume();
+
+// ¿hay una versión nueva publicada? (si dejaste la pestaña abierta, seguías con la vieja)
+async function checkVersion() {
+  if (state !== 'menu') return;
+  try { const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); const j = await r.json(); if (j.v && j.v !== VERSION) $('#newVer').hidden = false; } catch { }
+}
+$('#newVer').onclick = () => location.reload();
+setInterval(checkVersion, 60e3); setTimeout(checkVersion, 3000);
 
 let lastPhase = null, cardT = 0;
 function onRaceEvent(type, data) {
@@ -614,7 +623,7 @@ function showResults() {
     const P = loadProfile(); const up = train(P, t, q);
     $('#rDiv').textContent = 'ENTRENAMIENTO · DÍA ' + P.day;
     $('#rTime').textContent = fmt(got);
-    $('#rPos').innerHTML = `${escapeHtml(t.name)} · calidad <b>${Math.round(q * 100)}%</b> · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · te quedan ${trainsLeft(P)} entrenos · fatiga ${Math.round(P.fatigue)}%`;
+    $('#rPos').innerHTML = `${escapeHtml(t.name)} · <b class="tier t${P.lastTier}">${P.lastTier}</b> calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && P.lastEq < q - 0.005 ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · te quedan ${trainsLeft(P)} entrenos · fatiga ${Math.round(P.fatigue)}%`;
     $('#rBadges').innerHTML = Object.entries(up).map(([k, v]) => `<span class="acc">${STATS.find(x => x.id === k).name} +${v}</span>`).join('');
     $('#rSplits').innerHTML = ''; $('#rHeat').innerHTML = '';
     $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';

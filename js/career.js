@@ -37,6 +37,9 @@ export const overall = p => Math.round(STATS.reduce((a, s) => a + p.stats[s.id],
 // entrenos limitados: se ganan en carrera. 1.º +3, 2.º +2, 3.º +1. Empiezas con 3.
 export const DAILY = 3, PRIZE = [3, 2, 1];
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+// S ≥ 90 % · A ≥ 75 % · B ≥ 55 % · C ≥ 35 % · D: no sube. La fatiga baja la nota. Arriba de nivel 85 sube la mitad.
+export const TIERS = [['S', 0.9, 3], ['A', 0.75, 2], ['B', 0.55, 1], ['C', 0.35, 0.5], ['D', 0, 0]];
+export function tierOf(q) { return TIERS.find(t => q >= t[1]); }
 export const COOLDOWN_H = 3;   // horas hasta poder repetir el mismo drill
 export function drillWait(p, t) { const at = p.lastT?.[t.id] || 0; return Math.max(0, at + COOLDOWN_H * 3600e3 - Date.now()); }
 export function trainsLeft(p) { return Math.max(0, p.tokens ?? DAILY); }
@@ -54,27 +57,27 @@ export function train(p, t, q) {
   }
   p.noQuota = false;
   p.lastT = { ...(p.lastT || {}), [t.id]: Date.now() };
-  for (const [k, g] of Object.entries(t.gains)) {
-    const s = p.stats[k];
-    const d = t.kind === 'rest' ? g : g * 1.6 * (0.35 + 0.65 * q) * tired * (1.15 - s / 115);
-    const nv = Math.min(100, s + Math.max(0, d));
-    up[k] = +(nv - s).toFixed(1); p.stats[k] = +nv.toFixed(1);
-  }
-  // un entreno bien hecho siempre te sube al menos 1 de nivel (hasta 95)
-  if (t.kind !== 'rest' && q >= 0.35 && before < 95 && overall(p) <= before) {
-    for (let i = 0; i < 80 && overall(p) <= before; i++) {
-      let keys = Object.keys(t.gains).filter(k => p.stats[k] < 100);
-      if (!keys.length) keys = STATS.map(s => s.id).filter(k => p.stats[k] < 100);   // si esa cualidad ya está al máximo, sube otra
-      if (!keys.length) break;
-      for (const k of keys) { const s0 = p.stats[k]; p.stats[k] = +Math.min(100, s0 + 0.5).toFixed(1); up[k] = +((up[k] || 0) + p.stats[k] - s0).toFixed(1); }
+  const eq = q * tired, tier = tierOf(eq);
+  p.lastTier = tier[0]; p.lastEq = eq;
+  // subir N de nivel = sumar 7·N puntos de cualidades (nivel = promedio de las 7), repartidos en lo que trabaja este drill
+  let pts = STATS.length * tier[2] * (before >= 85 ? 0.5 : 1);
+  const W = Object.entries(t.gains), wSum = W.reduce((a, [, g]) => a + g, 0);
+  for (let pass = 0; pass < 3 && pts > 1e-6; pass++) {
+    const keys = pass === 0 ? W : STATS.map(s => [s.id, 1]).filter(([k]) => p.stats[k] < 100);   // si ya está al máximo, sube otra
+    const ws = pass === 0 ? wSum : keys.length; let used = 0;
+    for (const [k, g] of keys) {
+      const s0 = p.stats[k], nv = Math.min(100, s0 + pts * g / ws);
+      p.stats[k] = +nv.toFixed(2); used += p.stats[k] - s0; up[k] = +((up[k] || 0) + p.stats[k] - s0).toFixed(1);
     }
+    pts -= used;
   }
+  for (const k of Object.keys(up)) if (!up[k]) delete up[k];
   p.lastOvr = [before, overall(p)];
   p.fatigue = Math.max(0, Math.min(100, p.fatigue + t.fatigue * (t.kind === 'rest' ? 1 : 0.7 + 0.3 * q)));
   if (t.kind !== 'rest') { p.sessions++; } else p.fatigue = Math.max(0, p.fatigue);
   // los días pasan: se recupera un poco solo
   p.fatigue = Math.max(0, p.fatigue - 6);
-  p.log.unshift({ day: p.day, t: t.name, q: Math.round(q * 100), up });
+  p.log.unshift({ day: p.day, t: t.name, q: Math.round(q * 100), tier: tier[0], up });
   p.log = p.log.slice(0, 12);
   saveProfile(p);
   return up;

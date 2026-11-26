@@ -205,7 +205,8 @@ class Push extends Station {
       let q = gap < 0.07 ? 0.8 : 1;                                  // más de ~14 por segundo ya no suma tanto
       if (this.v < 0.15) q *= 0.6;                                   // arrancar desde parado cuesta
       this.v += this.imp * q * this.lf * this.ef;
-      this.spend(0.085 * this.lf ** -0.5 * 0.6);
+      this.rate = this.lastT > 0 ? lerp(this.rate || 6, 1 / Math.max(0.02, gap), 0.3) : 6;
+      this.spend(0.085 * this.lf ** -0.5 * 0.6 * sledCost(this.rate));   // más de 8 por segundo: te quema
       this.race.sfx('step');
       this.lastT = this.t;
     }
@@ -278,7 +279,8 @@ class Pull extends Station {
       const gap = this.t - this.lastT;
       let q = gap < 0.07 ? 0.8 : 1; if (this.v < 0.12) q *= 0.6;
       this.v += this.imp * q * this.lf * this.ef;
-      this.spend(0.08 * this.lf ** -0.5 * 0.6);
+      this.rate = this.lastT > 0 ? lerp(this.rate || 6, 1 / Math.max(0.02, gap), 0.3) : 6;
+      this.spend(0.08 * this.lf ** -0.5 * 0.6 * sledCost(this.rate));
       this.race.sfx('rope');
       this.ph = (this.ph + 0.5) % 1;
       this.lastT = this.t;
@@ -585,6 +587,8 @@ export const CTRL = { ski: Ski, push: Push, pull: Pull, bbj: BBJ, row: Row, farm
 function cadQ(gap, ideal, st) { if (st && gap < ideal * 0.6 && (!st._sp || st.t - st._sp > 1.5)) { st._sp = st.t; st.race.flash('Muy rápido: pasos firmes, no aplastes', 'meh', 1.1); } if (gap >= ideal) return 1; if (gap <= ideal * 0.55) return 0.12; return lerp(0.12, 1, (gap - ideal * 0.55) / (ideal * 0.45)); }
 
 // carril de 20 m: avanzas d metros reales yendo y volviendo
+// trineos: hasta 8 toques por segundo cuesta lo normal; más rápido, cada toque cansa bastante más
+function sledCost(rate) { return 1 + Math.max(0, (rate || 0) - 8) * 0.55; }
 function shuttle(d, len = 20) { const lap = Math.floor(d / len), w = d - lap * len, out = lap % 2 === 0; return { x: out ? w : len - w, dir: out ? 1 : -1, lap }; }
 // estaciones al ritmo: un toque = una rep; si tocas al final de la rep anterior, encadenas sin pausa
 function tapAny(I) { return I.pressed('A') || I.pressed('L') || I.pressed('R') || I.pressed('D') || I.pressed('U'); }

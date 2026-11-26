@@ -208,3 +208,6 @@ b{font-weight:700}
 #tags .tag.gh{background:rgba(40,90,160,.55)}
 
 .erow{display:flex;gap:10px}.erow>div{flex:1}.erow input,.erow select{width:100%}
+
+.tier{display:inline-block;min-width:18px;text-align:center;font-style:normal;font-weight:900;font-size:11px;border-radius:4px;padding:1px 4px;margin-right:4px;color:#111;background:#888}
+.tier.tS{background:#ffe500}.tier.tA{background:#5be38a}.tier.tB{background:#6fb7ff}.tier.tC{background:#c9c9c9}.tier.tD{background:#ff6b6b}
