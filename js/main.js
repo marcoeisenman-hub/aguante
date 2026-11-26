@@ -460,7 +460,16 @@ let lastPhase = null, cardT = 0;
 function onRaceEvent(type, data) {
   if (type === 'count') { const c = $('#hCount'); c.textContent = data; c.style.opacity = 1; }
   if (type === 'go') { const c = $('#hCount'); c.textContent = '¡YA!'; setTimeout(() => c.textContent = '', 700); Audio.music(2); }
-  if (type === 'finish') { store.set('hrResume', null); setTimeout(showResults, 2600); }
+  if (type === 'finish') {
+    store.set('hrResume', null);
+    // premio de entrenos con tu puesto final real (los tiempos de la IA ya se saben; amigos solo si ya terminaron). Papá fantasma no cuenta
+    if (race.usedProfile && !race.prized) {
+      const me = race.me, ahead = race.entries.filter(e => !e.isPlayer && !e.ghost && (e.isRemote ? e.finished && e.total < me.total : e.total < me.total)).length;
+      race.prized = true; race.prize = afterRace(loadProfile(), ahead + 1);
+    }
+    const tryResults = () => { if (!race || race.me !== data) return; if (state === 'paused') return setTimeout(tryResults, 500); showResults(); };
+    setTimeout(tryResults, 2600);
+  }
   if (type === 'save') store.set('hrResume', { ...data, at: Date.now(), S: JSON.parse(JSON.stringify(S)) });
   if (type === 'split') onSplit(data);
 }
@@ -621,7 +630,7 @@ function showResults() {
   }
   const st = race.standings();
   const pos = st.findIndex(x => x.e.isPlayer) + 1;
-  let prize = 0; if (race.usedProfile && !race.prized) { race.prized = true; prize = afterRace(loadProfile(), pos); }
+  const prize = race.prize || 0;
   // estimación en toda la división
   const [best, med, worst] = fieldDistribution(d);
   const sig = (Math.log(worst) - Math.log(best)) / 4;
