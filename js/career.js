@@ -34,12 +34,12 @@ export function saveProfile(p) { p.fatT = Date.now(); try { localStorage.setItem
 export function resetProfile() { const p = base(); saveProfile(p); return p; }
 export const overall = p => Math.round(STATS.reduce((a, s) => a + p.stats[s.id], 0) / STATS.length);
 
-// entrenos limitados: 3 por día (el descanso no cuenta)
-export const DAILY = 3;
+// entrenos limitados: se ganan en carrera. 1.º +3, 2.º +2, 3.º +1. Empiezas con 3.
+export const DAILY = 3, PRIZE = [3, 2, 1];
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
 export const COOLDOWN_H = 3;   // horas hasta poder repetir el mismo drill
 export function drillWait(p, t) { const at = p.lastT?.[t.id] || 0; return Math.max(0, at + COOLDOWN_H * 3600e3 - Date.now()); }
-export function trainsLeft(p) { return p.today === today() ? Math.max(0, DAILY - (p.todayN || 0)) : DAILY; }
+export function trainsLeft(p) { return Math.max(0, p.tokens ?? DAILY); }
 
 // cuánto sube: más difícil cerca de 100, menos si estás cansado; q = qué tan bien hiciste el mini-juego (0..1)
 export function train(p, t, q) {
@@ -48,9 +48,9 @@ export function train(p, t, q) {
   const up = {}, before = overall(p);
   if (drillWait(p, t) > 0) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }
   if (t.kind !== 'rest') {
-    if (p.today !== today()) { if (p.today) p.day++; p.today = today(); p.todayN = 0; }   // "Día" = días reales en que entrenaste
-    if ((p.todayN || 0) >= DAILY) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }   // sin cupo (p. ej. otra pestaña)
-    p.todayN = (p.todayN || 0) + 1;
+    if (trainsLeft(p) <= 0) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }   // sin entrenos (p. ej. otra pestaña)
+    if (p.today !== today()) { if (p.today) p.day++; p.today = today(); }   // "Día" = días reales en que entrenaste
+    p.tokens = trainsLeft(p) - 1;
   }
   p.noQuota = false;
   p.lastT = { ...(p.lastT || {}), [t.id]: Date.now() };
@@ -79,7 +79,7 @@ export function train(p, t, q) {
   saveProfile(p);
   return up;
 }
-export function afterRace(p) { p.races++; p.fatigue = Math.min(100, p.fatigue + 35); saveProfile(p); }
+export function afterRace(p, pos = 99) { const won = PRIZE[pos - 1] || 0; p.races++; p.tokens = trainsLeft(p) + won; p.fatigue = Math.min(100, p.fatigue + 35); saveProfile(p); return won; }
 
 // ---------- Nivel de los bots: misma escala que tu atleta ----------
 // Un atleta nivel 50 que hace bien las estaciones termina cerca del punto medio entre el mejor y la mediana del campo.

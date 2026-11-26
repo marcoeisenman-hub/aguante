@@ -252,7 +252,7 @@ function renderTrain() {
   const waitTxt = ms => { const m = Math.ceil(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
   $('#tList').innerHTML = TRAININGS.map(t => { const w = drillWait(P, t); return `<button class="btn" data-t="${t.id}">${t.name}<small>${w ? `otra vez en ${waitTxt(w)}` : Object.keys(t.gains).map(k => STATS.find(x => x.id === k).name).join(' · ') + (t.fatigue > 0 ? ' · cansa ' + t.fatigue : ' · recupera')}</small></button>`; }).join('');
   const left = trainsLeft(P);
-  $('#tLeft').innerHTML = left ? `Entrenos de hoy: <b>${left}</b> de ${DAILY}` : `<span style="color:var(--meh)">Ya hiciste los ${DAILY} entrenos de hoy. Vuelve mañana (puedes descansar o correr).</span>`;
+  $('#tLeft').innerHTML = (left ? `Entrenos disponibles: <b>${left}</b>` : `<span style="color:var(--meh)">No te quedan entrenos.</span>`) + ' · gana más en carrera: 1.º +3, 2.º +2, 3.º +1';
   for (const b of $$('#tList button')) { const t = TRAININGS.find(t => t.id === b.dataset.t); b.disabled = drillWait(P, t) > 0 || (!left && t.kind !== 'rest'); b.onclick = () => startTraining(t); }
   $('#tLog').innerHTML = P.log.length ? P.log.map(l => `<div>Día ${l.day} · ${escapeHtml(l.t)}${l.q != null && !/Descanso/.test(l.t) ? ' · ' + l.q + '%' : ''} <span>${Object.entries(l.up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(', ')}</span></div>`).join('') : '<div>Todavía no entrenaste.</div>';
 }
@@ -605,7 +605,7 @@ function showResults() {
     const P = loadProfile(); const up = train(P, t, q);
     $('#rDiv').textContent = 'ENTRENAMIENTO · DÍA ' + P.day;
     $('#rTime').textContent = fmt(got);
-    $('#rPos').innerHTML = `${escapeHtml(t.name)} · calidad <b>${Math.round(q * 100)}%</b> · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · quedan ${trainsLeft(P)} hoy · fatiga ${Math.round(P.fatigue)}%`;
+    $('#rPos').innerHTML = `${escapeHtml(t.name)} · calidad <b>${Math.round(q * 100)}%</b> · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · te quedan ${trainsLeft(P)} entrenos · fatiga ${Math.round(P.fatigue)}%`;
     $('#rBadges').innerHTML = Object.entries(up).map(([k, v]) => `<span class="acc">${STATS.find(x => x.id === k).name} +${v}</span>`).join('');
     $('#rSplits').innerHTML = ''; $('#rHeat').innerHTML = '';
     $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';
@@ -619,9 +619,9 @@ function showResults() {
     $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';
     show('results'); return;
   }
-  if (race.usedProfile) { const P = loadProfile(); afterRace(P); }
   const st = race.standings();
   const pos = st.findIndex(x => x.e.isPlayer) + 1;
+  let prize = 0; if (race.usedProfile && !race.prized) { race.prized = true; prize = afterRace(loadProfile(), pos); }
   // estimación en toda la división
   const [best, med, worst] = fieldDistribution(d);
   const sig = (Math.log(worst) - Math.log(best)) / 4;
@@ -637,6 +637,7 @@ function showResults() {
   $('#rPos').innerHTML = `Puesto <b>${pos}</b> de ${st.length} en el heat (grupo ${ag}) · aprox. <b>${est}</b> de ${size} en ${d.name}${!d.elite ? ` · grupo de edad ${ag}: aprox. <b>${estA}</b> de ${agSize}` : ''}`;
   // badges
   const badges = [];
+  if (race.usedProfile) badges.push([prize ? `+${prize} entreno${prize > 1 ? 's' : ''}` : 'Sin entrenos (podio = entrenos)', prize ? 'acc' : '']);
   const rec = store.get('aguanteRecords', {});
   const prev = rec[d.name];
   if (!prev || me.total < prev.best) badges.push(['¡Mejor marca!', 'acc']);
