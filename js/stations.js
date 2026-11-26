@@ -461,9 +461,11 @@ class Lunges extends Station {
       if (I.down(key)) { this.st = 'down'; this.depth = 0; this.bottomT = 0; }
       else if (I.pressed(other) || I.pressed('A')) { if (!this._wf || this.t - this._wf > 0.8) { this._wf = this.t; this.race.flash(`Ahora la pierna ${key === 'L' ? 'izquierda ←' : 'derecha →'}`, 'meh', 0.7); } }
     } else if (this.st === 'down') {
-      this.depth = Math.min(1, this.depth + dt / tD);
-      if (this.depth >= 1) { this.bottomT += dt; this.spend(0.12 * this.kw * dt / this.lf); }   // quedarse abajo cansa
-      if (!I.down(key)) {
+      const held = I.down(key);
+      if (held) {
+        this.depth = Math.min(1, this.depth + dt / tD);
+        if (this.depth >= 1) { this.bottomT += dt; this.spend(0.12 * this.kw * dt / this.lf); }   // quedarse abajo cansa
+      } else {
         const [a] = this.zone();
         this.st = 'up'; this.timer = 0;
         if (this.depth < a) { this.step = 0; this.slowUp = false; this.noRep('la rodilla no tocó el piso'); }

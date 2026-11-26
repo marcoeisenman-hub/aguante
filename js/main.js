@@ -120,6 +120,7 @@ function show(id) {
   if (id === 'records') renderRecords();
   if (id === 'practice') renderPractice();
   if (id === 'train') renderTrain();
+  clearInterval(trainTick); if (id === 'train') trainTick = setInterval(() => { if ($('#train').classList.contains('show')) renderTrain(); }, 30e3);   // esperas y cupo al día
   editorOpen = id === 'editor'; if (editorOpen) renderEditor(); else dropPreview();
 }
 for (const b of $$('[data-go]')) b.addEventListener('click', () => { initAudio(); Audio.sfx('ui'); show(b.dataset.go); });
@@ -240,6 +241,7 @@ const ovrTxt = v => v > 100 ? '99+' : v;
 if (!TRAINING_ON) { document.querySelector('#home [data-go=train]')?.remove(); $('#pProfOvr').hidden = true; }   // bots por encima del máximo entrenable
 
 // ---------------- Entrenar ----------------
+var trainTick = 0;
 function renderTrain() {
   const P = loadProfile(), o = overall(P);
   $('#tOvr').textContent = o; $('#tDay').textContent = P.day; $('#tSes').textContent = P.sessions; $('#tRaces').textContent = P.races;

@@ -27,7 +27,7 @@ const base = () => ({ v: 3, day: 1, fatigue: 0, sessions: 0, races: 0, stats: Ob
 export function loadProfile() {
   try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) {
     // descansar = que pase el tiempo: la fatiga baja 10 puntos por hora
-    const now = Date.now(); if (p.fatT) p.fatigue = Math.max(0, p.fatigue - (now - p.fatT) / 3600e3 * 10); p.fatT = now; for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } if (p.v < 3) { p.day = 1; p.log = []; if (!p.todayN) delete p.today; p.v = 3; saveProfile(p); } return p; } } catch { }
+    const now = Date.now(); if (p.fatT) p.fatigue = Math.max(0, p.fatigue - (now - p.fatT) / 3600e3 * 10); if (!p.fatT || now - p.fatT > 60e3) saveProfile(p); for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } if (p.v < 3) { p.day = 1; p.log = []; if (!p.todayN) delete p.today; p.v = 3; saveProfile(p); } return p; } } catch { }
   return base();
 }
 export function saveProfile(p) { p.fatT = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { } }
