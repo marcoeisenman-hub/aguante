@@ -77,7 +77,7 @@ export function train(p, t, q) {
   if (t.kind !== 'rest') { p.sessions++; } else p.fatigue = Math.max(0, p.fatigue);
   // los días pasan: se recupera un poco solo
   p.fatigue = Math.max(0, p.fatigue - 6);
-  p.log.unshift({ day: p.day, t: t.name, q: Math.round(q * 100), tier: tier[0], up });
+  p.log.unshift({ day: p.day, t: t.name, q: Math.round(eq * 100), tier: tier[0], up });   // el % con fatiga, el mismo que decide la nota
   p.log = p.log.slice(0, 12);
   saveProfile(p);
   return up;
