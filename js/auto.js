@@ -29,12 +29,20 @@ export class Autopilot {
       const rate = (id === 'farmers' ? 3.6 : (id === 'push' || id === 'pull') ? 7 : 4.4) * (0.9 + this.skill * 0.12);
       if (this.t >= this.next) { I.tap(this.alt); this.alt = this.alt === 'L' ? 'R' : 'L'; this.next = this.t + 1 / rate * (1 + this.jitter(0.25)); }
     } else if (id === 'bbj') {
-      // mantiene; si está muy cansado respira un poco de pie
+      // burpee; al saltar pulsa cerca del centro del verde (con error según su nivel). Muy cansado: respira de pie
       if (ctl.me.energy < 18) this.rest = true; else if (ctl.me.energy > 35) this.rest = false;
-      if (this.rest) I.release('A'); else I.press('A');
+      if (ctl.stage === 'stand' && !this.rest && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05; this.tgt = null; }
+      if (ctl.stage === 'aim') {
+        if (this.tgt == null) { const [a, b] = ctl.zone(); this.tgt = (a + b) / 2 + this.jitter(0.16); }
+        if (ctl.aim >= this.tgt) { I.tap('A'); this.tgt = null; }
+      }
     } else if (id === 'lunges') {
-      const ready = ctl.st === 'stand' || (ctl.st === 'up' && ctl.timer > 0.09);
-      if (ready && !ctl.queued && this.t >= this.next) { I.tap(ctl.nextLeg); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
+      const k = ctl.leg;
+      if (ctl.st === 'stand') { I.release(k === 'L' ? 'R' : 'L'); I.press(k); this.tgt = null; }
+      else if (ctl.st === 'down') {
+        if (this.tgt == null) { const [a, b] = ctl.zone(); this.tgt = (a + b) / 2 + this.jitter(0.12); }
+        if (ctl.depth >= this.tgt) I.release(k); else I.press(k);
+      } else { I.release('L'); I.release('R'); }
     } else if (id === 'wb') {
       if ((ctl.state === 'ready' || ctl.state === 'catch') && this.t >= this.next) { I.tap('A'); this.next = this.t + 0.05 + Math.max(0, this.jitter(0.15)); }
     }

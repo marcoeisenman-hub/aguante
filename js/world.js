@@ -246,7 +246,7 @@ export class World {
     this.eq.push = []; this.eq.pull = []; this.eq.kb = []; this.eq.bag = []; this.eq.ball = []; this.eq.wb = [];
     for (let j = 0; j < LANES; j++) {
       const L = loads[j % loads.length];
-      const p = laneOf('push', j); const sp = sled(L.push); sp.rotation.y = -Math.PI / 2; sp.position.set(p.pos.x + 1.0, 0, p.pos.z); G.add(sp); this.eq.push.push(sp);
+      const p = laneOf('push', j); const sp = sled(L.push); sp.rotation.y = Math.PI / 2; sp.position.set(p.pos.x + 1.0, 0, p.pos.z); G.add(sp); this.eq.push.push(sp);
       const q = laneOf('pull', j); const sq = sled(L.pull); sq.rotation.y = -Math.PI / 2; sq.position.set(q.pos.x + 0.2, 0, q.pos.z); G.add(sq); this.eq.pull.push(sq);
       const f = laneOf('farmers', j); const k1 = kettlebell(L.farmers), k2 = kettlebell(L.farmers);
       k1.position.set(f.pos.x - 0.5, 0, f.pos.z - 0.25); k2.position.set(f.pos.x - 0.5, 0, f.pos.z + 0.25); G.add(k1, k2); this.eq.kb.push([k1, k2]);

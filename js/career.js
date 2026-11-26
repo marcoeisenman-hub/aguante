@@ -21,21 +21,24 @@ export const TRAININGS = [
   { id: 'farmers', name: 'Farmers 100 m', kind: 'station', st: 'farmers', part: 0.5, gains: { agarre: 3 }, fatigue: 12 },
   { id: 'lunges', name: 'Zancadas 50 m', kind: 'station', st: 'lunges', part: 0.5, gains: { fuerza: 1.5, resis: 1.5 }, fatigue: 16 },
   { id: 'wb', name: 'Wall Balls 40 reps', kind: 'station', st: 'wb', part: 0.4, gains: { resis: 3 }, fatigue: 16 },
-  { id: 'descanso', name: 'Descanso y movilidad', kind: 'rest', gains: { recup: 0.6 }, fatigue: -45 },
 ];
 
 const base = () => ({ v: 3, day: 1, fatigue: 0, sessions: 0, races: 0, stats: Object.fromEntries(STATS.map(s => [s.id, 50])), log: [] });
 export function loadProfile() {
-  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) { for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } if (p.v < 3) { p.day = 1; p.log = []; if (!p.todayN) delete p.today; p.v = 3; saveProfile(p); } return p; } } catch { }
+  try { const p = JSON.parse(localStorage.getItem(KEY)); if (p && p.stats) {
+    // descansar = que pase el tiempo: la fatiga baja 10 puntos por hora
+    const now = Date.now(); if (p.fatT) p.fatigue = Math.max(0, p.fatigue - (now - p.fatT) / 3600e3 * 10); p.fatT = now; for (const s of STATS) p.stats[s.id] ??= 50; if ((p.v || 1) < 2) { for (const s of STATS) p.stats[s.id] = Math.min(100, p.stats[s.id] + 10); p.v = 2; saveProfile(p); } if (p.v < 3) { p.day = 1; p.log = []; if (!p.todayN) delete p.today; p.v = 3; saveProfile(p); } return p; } } catch { }
   return base();
 }
-export function saveProfile(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { } }
+export function saveProfile(p) { p.fatT = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { } }
 export function resetProfile() { const p = base(); saveProfile(p); return p; }
 export const overall = p => Math.round(STATS.reduce((a, s) => a + p.stats[s.id], 0) / STATS.length);
 
 // entrenos limitados: 3 por día (el descanso no cuenta)
 export const DAILY = 3;
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+export const COOLDOWN_H = 3;   // horas hasta poder repetir el mismo drill
+export function drillWait(p, t) { const at = p.lastT?.[t.id] || 0; return Math.max(0, at + COOLDOWN_H * 3600e3 - Date.now()); }
 export function trainsLeft(p) { return p.today === today() ? Math.max(0, DAILY - (p.todayN || 0)) : DAILY; }
 
 // cuánto sube: más difícil cerca de 100, menos si estás cansado; q = qué tan bien hiciste el mini-juego (0..1)
@@ -43,12 +46,14 @@ export function train(p, t, q) {
   q = Math.max(0, Math.min(1, q));
   const tired = Math.max(0.25, 1 - p.fatigue / 130);
   const up = {}, before = overall(p);
+  if (drillWait(p, t) > 0) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }
   if (t.kind !== 'rest') {
     if (p.today !== today()) { if (p.today) p.day++; p.today = today(); p.todayN = 0; }   // "Día" = días reales en que entrenaste
     if ((p.todayN || 0) >= DAILY) { p.lastOvr = [before, before]; p.noQuota = true; return {}; }   // sin cupo (p. ej. otra pestaña)
     p.todayN = (p.todayN || 0) + 1;
   }
   p.noQuota = false;
+  p.lastT = { ...(p.lastT || {}), [t.id]: Date.now() };
   for (const [k, g] of Object.entries(t.gains)) {
     const s = p.stats[k];
     const d = t.kind === 'rest' ? g : g * 1.6 * (0.35 + 0.65 * q) * tired * (1.15 - s / 115);
@@ -99,7 +104,7 @@ const mul = (s, lo, hi) => s < 50 ? lo + (1 - lo) * (s / 50) : 1 + (hi - 1) * ((
 export function applyProfile(m, p) {
   const S = p.stats, tiredK = 1 - p.fatigue / 500;
   m.prof = {
-    run: mul(S.vel, 0.88, 1.12) * tiredK,          // velocidad de carrera
+    run: tiredK,                                    // la velocidad de carrera sale de tu nivel (race.js); aquí solo el cansancio
     drain: mul(S.motor, 1.18, 0.8),                 // gasto al correr
     regen: mul(S.recup, 0.8, 1.35),                 // recuperación
     tech: mul(S.tecnica, 1.25, 0.7),                // error de tiempo en ski/row (menos = mejor)

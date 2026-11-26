@@ -15,7 +15,7 @@ h4{font-size:12px;font-weight:700;color:var(--mut);text-transform:uppercase;lett
 b{font-weight:700}
 
 /* pantallas */
-.screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:10;padding:20px}
+.screen{position:fixed;inset:0;display:none;align-items:safe center;justify-content:center;z-index:10;padding:20px;overflow-y:auto}
 .screen.show{display:flex}
 .screen.dim{background:rgba(5,5,7,.55);backdrop-filter:blur(3px)}
 #loading{background:var(--bg);flex-direction:column;gap:18px}
@@ -28,7 +28,7 @@ b{font-weight:700}
 .logo{gap:0;text-transform:uppercase;line-height:1}.logo .lg-a{color:#fff}.logo .lg-b{color:var(--acc)}
 .logo.big .lg-a{background:var(--acc);color:#000;padding:.02em .16em .02em .12em;margin-right:.06em;transform:skewX(-8deg);display:inline-block}
 
-#home{justify-content:flex-start;align-items:flex-end;background:linear-gradient(90deg,rgba(5,5,7,.82) 0,rgba(5,5,7,.45) 45%,transparent 70%)}
+#home{justify-content:flex-start;align-items:safe flex-end;background:linear-gradient(90deg,rgba(5,5,7,.82) 0,rgba(5,5,7,.45) 45%,transparent 70%)}
 .homewrap{max-width:520px;margin:0 0 6vh 5vw}
 .tag{color:#d0d1d5;font-size:17px;margin:6px 0 26px}
 .menu{display:flex;flex-direction:column;gap:10px;align-items:stretch}
@@ -41,7 +41,7 @@ b{font-weight:700}
 .opts select{padding:4px 6px;font-size:13px}
 .fine{margin-top:16px;font-size:12px;color:#6c6e75}
 
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 26px;width:min(560px,96vw);max-height:92vh;backdrop-filter:blur(10px)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 26px;width:min(560px,96vw);max-height:calc(100dvh - 40px);overflow-y:auto;backdrop-filter:blur(10px)}
 .panel.wide{width:min(980px,96vw)}
 .panel.narrow{width:min(360px,96vw)}
 .panel.scroll{overflow:auto}
@@ -206,3 +206,5 @@ b{font-weight:700}
 #tags .tag{position:absolute;left:0;top:0;white-space:nowrap;font-size:12px;font-weight:700;color:#fff;background:rgba(10,11,14,.62);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:2px 6px;transform-origin:50% 100%;text-shadow:0 1px 2px #000}
 #tags .tag b{margin-left:5px;color:var(--acc);font-weight:900}
 #tags .tag.gh{background:rgba(40,90,160,.55)}
+
+.erow{display:flex;gap:10px}.erow>div{flex:1}.erow input,.erow select{width:100%}

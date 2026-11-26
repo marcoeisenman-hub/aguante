@@ -28,6 +28,8 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 
 // Splits de un rival a partir de su tiempo final (seg) y su sexo/nivel
+// "PUSH 32 m", "WB 57": en qué estación va y cuánto lleva
+function stLabel(i, f) { const s = STATIONS[i], n = Math.floor(clamp(f, 0, 0.999) * s.dist); return `${s.short} ${n}${s.unit === 'reps' ? '' : ' m'}`; }
 function aiSplits(total, sex, stationBias = 0) {
   const E = SPLITS[sex].elite, A = SPLITS[sex].avg;
   const eT = 8 * E.run + STATIONS.reduce((s, st) => s + E[st.id], 0) + E.rox;
@@ -44,6 +46,24 @@ function aiSplits(total, sex, stationBias = 0) {
   const sum = seg.reduce((a, b) => a + b, 0) + rox;
   const k = total / sum;
   return { seg: seg.map(x => x * k), rox: Array.from({ length: 16 }, () => rox * k / 16 * (0.8 + Math.random() * 0.4)) };
+}
+
+// minutos de carrera de un atleta de nivel v (lo inverso de ovrFor)
+export function levelMinutes(dist, v) {
+  const [best, med, worst] = dist, t50 = best + (med - best) * 0.5;
+  const x = v >= 50 ? (v - 50) * Math.log(1.14) / 50 : (v - 50) * Math.log(worst / t50) / 50;
+  return t50 / Math.exp(x);
+}
+// ritmo por km (seg) con que corre un rival que termina en totalSec: el mismo reparto que aiSplits, sin azar
+function runPaceAt(totalSec, teamSex, sex) {
+  const E = SPLITS[teamSex].elite, A = SPLITS[teamSex].avg;
+  const eT = 8 * E.run + STATIONS.reduce((s, st) => s + E[st.id], 0) + E.rox;
+  const aT = 8 * A.run + STATIONS.reduce((s, st) => s + A[st.id], 0) + A.rox;
+  const lam = clamp((totalSec - eT) / (aT - eT), -0.4, 1.8);
+  const g = (T, k) => Math.max(T.elite[k] * 0.8, T.elite[k] + lam * (T.avg[k] - T.elite[k]));
+  const kmMean = [0.95, 0.98, 1.01, 1.02, 0.99, 1.0, 1.03, 1.05].reduce((a, b) => a + b, 0) / 8;
+  const sum = 8 * g(SPLITS[teamSex], 'run') * kmMean + STATIONS.reduce((s, st) => s + g(SPLITS[teamSex], st.id), 0) + g(SPLITS[teamSex], 'rox');
+  return g(SPLITS[sex], 'run') * kmMean * (totalSec / sum);
 }
 
 export class Race {
@@ -107,6 +127,11 @@ export class Race {
     }
     if (o.profile) applyProfile(me.members[0], o.profile);   // tu atleta entrenado
     if (o.profile) me.ovr = overall(o.profile);
+    {
+      const lvl = o.profile ? (overall(o.profile) + (o.profile.stats.vel ?? 50)) / 2 : 50;      // correr: tu nivel y tu velocidad
+      const teamSex = div.cat === 'W' ? 'F' : 'M', tot = levelMinutes(odist, lvl) * 60;
+      for (const m of me.members) m.runRef = runPaceAt(tot, teamSex, m.sex);                      // seg/km en RITMO, como un rival de tu nivel
+    }
     if (this.myAge) for (const m of me.members) { const k = ageFactor(m.papa ? PAPA.age : this.myAge); if (k !== 1) m.ageK = k; }
     this.look = o.look || {};
     this.trainPart = o.trainPart || 0;
@@ -144,7 +169,7 @@ export class Race {
       this.entries.push(e); lane++;
     }
     if (o.ghost && !this.practice) {
-      const g = { id: 99, isPlayer: false, ghost: true, lane: (me.lane + 4) % LANES, kit: 2, country: 'PAN', name: 'Papá · Tampa', members: [{ sex: 'M', name: 'Papá' }], finished: false };
+      const g = { id: 99, isPlayer: false, ghost: true, ovr: o.profile ? ovrFor(fieldDistribution({ format: 'singles', cat: 'M' }), PAPA.total / 60) : undefined, lane: (me.lane + 4) % LANES, kit: 2, country: 'PAN', name: 'Papá · Tampa', members: [{ sex: 'M', name: 'Papá' }], finished: false };
       g.segT = PAPA.seg.slice(); g.roxT = Array(16).fill(PAPA.rox); g.total = PAPA.total;
       // en otras divisiones el fantasma corre igual (su carrera real de Men Open)
       this.buildTimeline(g);
@@ -428,7 +453,7 @@ export class Race {
     if (I.pressed('U')) { me.gear = Math.min(4, me.gear + 1); this.sfx('ui'); }
     if (I.pressed('D')) { me.gear = Math.max(0, me.gear - 1); this.sfx('ui'); }
     const G = GEARS[me.gear];
-    const ref = REF[m.sex].run / ((m.prof?.run || 1) * (m.ageK || 1));             // seg/km a ritmo "RITMO"
+    const ref = (m.runRef || REF[m.sex].run) / ((m.prof?.run || 1) * (m.ageK || 1));             // seg/km a ritmo "RITMO"
     let vSim = (1000 / ref) * G.mul * this.energyFactor(m);
     if (me.compromised > 0) { vSim *= lerp(1, 0.9, me.compromised); me.compromised = Math.max(0, me.compromised - simDt / 120); }
     // dobles: el compañero
@@ -490,7 +515,7 @@ export class Race {
     // dobles: el compañero sigue tu ritmo hasta donde le da (si se separan más de 10 s: +1 min)
     if (mate) {
       const mf = this.energyFactor(mate);
-      const mateRef = REF[mate.sex].run * (mate.runMul || 1) / (mate.ageK || 1);
+      const mateRef = (mate.runRef || REF[mate.sex].run) * (mate.runMul || 1) / (mate.ageK || 1);
       const vOwn = 1000 / mateRef;                                   // su ritmo "RITMO" en m/s
       const gapM = me.s - me.partnerS, cap = vOwn * (mate.maxMul || 1.12) * mf;   // lo más rápido que puede ir ahora
       // te sigue si le da (si va atrás, apura un poco para alcanzarte, sin pasar su tope)
@@ -534,7 +559,7 @@ export class Race {
     const st = this.stationOf(me.phase === 'roxIn' ? me.seg + 1 : me.seg).id;
     const path = this.roxPath(me.phase, st, me.lane, 0);
     const fast = I.down('U') || I.down('A');
-    const vSim = (1000 / REF[m.sex].run) * (m.prof?.run || 1) * (m.ageK || 1) * (fast ? 1.05 : 0.82) * this.energyFactor(m);
+    const vSim = (1000 / (m.runRef || REF[m.sex].run)) * (m.prof?.run || 1) * (m.ageK || 1) * (fast ? 1.05 : 0.82) * this.energyFactor(m);
     if (fast) m.energy = clamp(m.energy - 0.06 * (m.prof?.drain || 1) * simDt, 0, 100); else m.energy = clamp(m.energy + 0.05 * (m.prof?.regen || 1) * simDt, 0, 100);
     m.intensity = fast ? 0.9 : 0.6;
     const vVis = vSim * this.K * RUNVIS / 1000 * 0.75;
@@ -648,13 +673,13 @@ export class Race {
         const i = Math.floor(me.seg / 2);
         const order = me.phase === 'run' ? 0 : me.phase === 'roxIn' ? 1 : me.phase === 'station' ? 2 : 3;
         prog = me.finished ? 100 : i * 4 + order + segF;
-        label = me.finished ? fmt(me.total) : me.phase === 'run' ? `Run ${i + 1}` : me.phase === 'station' ? STATIONS[i].short : 'ROX';
+        label = me.finished ? fmt(me.total) : me.phase === 'run' ? `Run ${i + 1}` : me.phase === 'station' ? stLabel(i, segF) : 'ROX';
       } else if (e.isRemote) {
         prog = e.finished ? 100 : e.left ? -1 : e.prog ?? 0;
         label = e.finished ? fmt(e.total) : e.label;
       } else {
         prog = e.finished ? 100 : e.prog ?? 0;
-        label = e.finished ? fmt(e.total) : !e.cur ? 'Run 1' : e.cur.k === 'run' ? `Run ${e.cur.i + 1}` : e.cur.k === 'st' ? STATIONS[e.cur.i].short : 'ROX';
+        label = e.finished ? fmt(e.total) : !e.cur ? 'Run 1' : e.cur.k === 'run' ? `Run ${e.cur.i + 1}` : e.cur.k === 'st' ? stLabel(e.cur.i, e.f || 0) : 'ROX';
       }
       const time = e.finished ? (e.isPlayer ? e.total : e.total) : null;
       return { e, prog, label, time };

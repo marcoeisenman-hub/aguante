@@ -70,7 +70,7 @@ class Station {
 function ergInit(st, cycle) {
   st.cycle = cycle; st.v = 0; st.vt = st.total / st.ref; st.c1 = 1.1; st.c0 = 0.35 * st.vt;
   st.imp = (st.c0 + st.c1 * st.vt) / 7.0;                 // ~7 toques por segundo = ritmo de referencia (damper 5)
-  st.damper = st.me.damper ?? 6; st.lastT = -1; st.ph = 0; st.pace = 0; st.spm = 0;
+  st.damper = st.me.damper ?? 6; st.lastT = -1; st.ph = 0; st.pace = 0; st.spm = 0; st.rate = 0;
 }
 function ergStep(st, dt, I) {
   if (I.pressed('U') && st.damper < 10) { st.damper++; st.race.sfx('ui'); }
@@ -79,13 +79,19 @@ function ergStep(st, dt, I) {
   const d = st.damper, g = 0.75 + 0.05 * d, k = 0.8 + 0.04 * d;
   const tech = 1 + (1 - (st.me.prof?.tech || 1)) * 0.15;  // técnica entrenada: rinde un poco más cada jalón
   let taps = 0; for (const key of ['L', 'R', 'A']) if (I.pressed(key)) taps++;
+  // ritmo de jalón (toques por segundo). Verde = 5,5–8: cada jalón rinde completo.
+  // Más rápido que el verde: jalones cortos que casi no mueven el volante y cansan mucho.
   for (let i = 0; i < taps; i++) {
-    const gap = st.t - st.lastT;
-    let q = gap < 0.07 ? 0.8 : 1; if (st.v < 0.1 * st.vt) q *= 0.7;
+    const gap = Math.max(0.02, st.t - st.lastT);
+    st.rate = st.lastT < 0 ? 4 : lerp(st.rate, 1 / gap, 0.35);
+    const [lo, hi] = ERG_ZONE;
+    let q = st.rate <= hi ? 1 : Math.max(0.25, 1 - (st.rate - hi) * 0.22);
+    if (st.v < 0.1 * st.vt) q *= 0.7;
     st.v += st.imp * q * g * tech * st.ef;
-    st.spend(0.05 * (0.6 + 0.08 * d));
+    st.spend(0.05 * (0.6 + 0.08 * d) * (st.rate > hi ? 1 + (st.rate - hi) * 0.35 : 1));
     st.lastT = st.t;
   }
+  if (st.t - st.lastT > 0.35) st.rate = Math.max(0, st.rate - dt * 8);
   st.v = Math.max(0, st.v - (st.c0 + st.c1 * st.v) * k * dt);
   st.add(st.v * dt);
   const r = st.v / st.vt, prev = st.ph;
@@ -95,10 +101,12 @@ function ergStep(st, dt, I) {
   st.spm = r * (st.id === 'row' ? 28 : 34);
   st.race.loop('flywheel', 0.35, 0.3 + 0.5 * clamp(r, 0, 1.5));
 }
+const ERG_ZONE = [5.5, 8], ERG_MAX = 12;
 function ergHud(st) {
-  return { gauge: gauge('speed', { val: clamp(st.v / (st.vt * 1.5), 0, 1), label: `RITMO · ¡APRIETA RÁPIDO! · DAMPER ${st.damper}` }), big: Math.floor(st.done) + ' m', sub: (st.pace ? fmtS(st.pace) + ' /500m · ' : '') + `damper ${st.damper} (↑ ↓)` };
+  const [lo, hi] = ERG_ZONE, r = st.rate, txt = r > hi ? 'MUY RÁPIDO · jalones cortos' : r < lo ? 'MÁS RÁPIDO' : 'BIEN · mantén el ritmo';
+  return { gauge: gauge('timing', { val: clamp(r / ERG_MAX, 0, 1), zone: [lo / ERG_MAX, hi / ERG_MAX], label: `RITMO DE JALÓN · ${txt} · DAMPER ${st.damper}` }), big: Math.floor(st.done) + ' m', sub: (st.pace ? fmtS(st.pace) + ' /500m · ' : '') + `damper ${st.damper} (↑ ↓)` };
 }
-function ergHints(st) { return [['← → / ESPACIO', 'aprieta lo más rápido que puedas'], ['↑ ↓', `damper ${st.damper}: alto = más fuerza por jalón, cansa más`]]; }
+function ergHints(st) { return [['← → / ESPACIO', 'jala a ritmo: aguja en verde (aplastar no sirve)'], ['↑ ↓', `damper ${st.damper}: alto = más fuerza por jalón, cansa más`]]; }
 
 class Ski extends Station {
   constructor(...a) {
@@ -218,7 +226,7 @@ class Push extends Station {
   placeSled() {
     const sx = this.sledPos();
     this.sled.position.set(sx, 0, this.L.pos.z);
-    this.sled.rotation.y = this.dirn > 0 ? -Math.PI / 2 : Math.PI / 2;
+    this.sled.rotation.y = this.dirn > 0 ? Math.PI / 2 : -Math.PI / 2;   // postes hacia el atleta
     // el atleta va detrás de los postes
     place(this.av, _v.set(sx - this.dirn * 1.18, 0, this.L.pos.z), this.dirn > 0 ? FACE.px : FACE.nx);
   }
@@ -310,36 +318,49 @@ class Pull extends Station {
 }
 
 // =====================================================================
-// Burpee Broad Jump: cada toque = un burpee y un salto (~2 m). 80 m reales = 4 carriles de 20 m.
+// Burpee Broad Jump: ESPACIO = burpee (pecho al piso). Al subir aparece el medidor de salto:
+// ESPACIO otra vez con la aguja en verde = salto largo (~2 m). Fuera del verde saltas menos y necesitas más burpees.
+// 80 m reales = 4 carriles de 20 m. Cansado, la aguja va más rápido y el verde es más chico.
 class BBJ extends Station {
   constructor(...a) {
     super(...a);
-    this.stage = 'stand'; this.ph = 0; this.x = 0; this.timer = 0;
-    this.cyc = 0.95;
-    this.realBy(this.total / 2.0 * this.cyc);          // ~2 m por burpee, como en la competencia (40 saltos)
-    this.per = this.total / (this.ref / this.cyc);   // m por burpee
+    this.stage = 'stand'; this.ph = 0; this.x = 0; this.timer = 0; this.aim = 0; this.jq = 1;
+    this.cyc = 1.3;
+    this.realBy(this.total / 2.0 * this.cyc);          // ~2 m por burpee bien saltado, como en la competencia (40 saltos)
+    this.per = this.total / (this.ref / this.cyc);   // m por burpee perfecto
   }
+  zone() { const w = 0.2 * lerp(0.65, 1, clamp(this.ef, 0, 1)); return [0.7 - w / 2, 0.7 + w / 2]; }
   update(dt, I) {
     this.t += dt;
-    const ef = this.ef, tD = 0.27 / ef ** 0.5, tU = 0.23 / ef ** 0.5, tJ = 0.38;
-    // mantén ESPACIO (o cualquier flecha): burpees seguidos a tu ritmo. Suelta: terminas el salto y te quedas de pie respirando
-    const hold = I.down('A') || I.down('L') || I.down('R') || I.down('U') || I.down('D') || tapAny(I);
+    const ef = this.ef, tD = 0.27 / ef ** 0.5, tU = 0.23 / ef ** 0.5, tJ = 0.38, tA = 0.62 * lerp(0.75, 1, clamp(ef, 0, 1));
+    const press = tapAny(I), hold = I.down('A') || I.down('L') || I.down('R') || I.down('U') || I.down('D');
     if (this.stage === 'stand') {
       this.ph = 0;
-      if (hold) { this.stage = 'down'; this.timer = 0; }
+      if (press || hold || this.queued) { this.queued = false; this.stage = 'down'; this.timer = 0; }
       else this.me.energy = Math.min(100, this.me.energy + dt * this.K * this.kw * 0.06);   // de pie recuperas
-    }
-    else if (this.stage === 'down') {
+    } else if (this.stage === 'down') {
       this.timer += dt; this.ph = lerp(0, 0.4, clamp(this.timer / tD, 0, 1));
       if (this.timer >= tD) { this.race.sfx('thud'); this.stage = 'up'; this.timer = 0; }
     } else if (this.stage === 'up') {
       this.timer += dt; this.ph = lerp(0.4, 0.66, clamp(this.timer / tU, 0, 1));
-      if (this.timer >= tU) { this.stage = 'jump'; this.jump = { from: this.x, t: 0, d: Math.min(this.per * ef, this.total - this.x) }; this.xv = this.x; this.spend(0.5 * this.kw); }
+      if (this.timer >= tU) { this.stage = 'aim'; this.aim = 0; }
+    } else if (this.stage === 'aim') {
+      // agachado listo para saltar: la aguja sube; ESPACIO en verde = salto largo
+      this.aim += dt / tA; this.ph = 0.66 + 0.04 * Math.min(1, this.aim);
+      if (press || this.aim >= 1) {
+        const [a, b] = this.zone(), c = (a + b) / 2, hw = (b - a) / 2, d = Math.abs(Math.min(1, this.aim) - c);
+        this.jq = press ? (d <= hw ? 1 : Math.max(0.55, 1 - (d - hw) * 1.6)) : 0.55;
+        if (!press) this.race.flash('Salto corto: pulsa en verde', 'meh', 0.8);
+        else if (this.jq >= 1) this.race.sfx('ui');
+        this.stage = 'jump'; this.jump = { from: this.x, t: 0, d: Math.min(this.per * ef * this.jq, this.total - this.x) }; this.xv = this.x;
+        this.spend(0.5 * this.kw);
+      }
     } else if (this.stage === 'jump') {
       const j = this.jump; j.t += dt;
       const k = clamp(j.t / tJ, 0, 1);
       this.ph = lerp(0.7, 1.0, k);
       this.xv = j.from + j.d * Math.sin(k * Math.PI / 2);
+      if (press && k > 0.5) this.queued = true;     // al caer ya puedes pedir el siguiente
       if (k >= 1) { this.x = j.from + j.d; this.add(j.d); this.stage = 'stand'; this.ph = 0; this.race.sfx('land'); if (Math.floor(this.x / 20) > Math.floor(j.from / 20) && !this.finished) this.good(Math.floor(this.x / 20) * 20 + ' m · vuelta'); }
     }
     const d = this.stage === 'jump' ? this.xv : this.x;
@@ -350,8 +371,11 @@ class BBJ extends Station {
     if (this.stage === 'jump') this.av.group.position.y = Math.sin(clamp(this.jump.t / tJ, 0, 1) * Math.PI) * 0.28;
     this.sh = sh;
   }
-  hud() { return { gauge: null, big: this.done.toFixed(0) + ' m', sub: `de 80 m · carril ${Math.min(4, (this.sh?.lap ?? 0) + 1)}/4` }; }
-  hints() { return [['MANTÉN ESPACIO', 'burpees seguidos'], ['SUELTA', 'respiras de pie']]; }
+  hud() {
+    const aiming = this.stage === 'aim';
+    return { gauge: gauge('timing', { val: aiming ? Math.min(1, this.aim) : 0, zone: this.zone(), label: aiming ? 'SALTO · ¡ESPACIO EN VERDE!' : 'ESPACIO = BURPEE · luego salta en verde' }), big: this.done.toFixed(0) + ' m', sub: `de 80 m · carril ${Math.min(4, (this.sh?.lap ?? 0) + 1)}/4` };
+  }
+  hints() { return [['ESPACIO', 'burpee'], ['ESPACIO en verde', 'salto largo (~2 m)']]; }
   cam() { const sh = this.sh || { x: 0, dir: 1 }; const x = this.L.pos.x + sh.x; return { pos: _v.set(x - sh.dir * 2.6, 1.9, this.L.pos.z + 3.6 * (this.L.pos.z < 0 ? 1 : -1)), look: _w.set(x + sh.dir * 1.2, 0.5, this.L.pos.z) }; }
 }
 
@@ -415,40 +439,50 @@ class Farmers extends Station {
 }
 
 // =====================================================================
-// Sandbag Lunges: cada toque = una zancada (~1 m, la rodilla toca sola). 100 m = 5 carriles de 20 m.
+// Sandbag Lunges: mantén ← (pierna izquierda) o → (derecha) para bajar; suelta cuando la barra está en verde
+// (la rodilla toca el piso). Si sueltas antes: NO REP. Si te quedas abajo, pierdes tiempo. Hay que alternar piernas.
+// 100 m = 5 carriles de 20 m.
 class Lunges extends Station {
   constructor(...a) {
     super(...a);
     this.bag = this.race.world.eq.bag[this.lane];
-    this.x = 0; this.st = 'stand'; this.leg = 'L'; this.timer = 0; this.ph = 0;
+    this.x = 0; this.st = 'stand'; this.leg = 'L'; this.timer = 0; this.ph = 0; this.depth = 0; this.slowUp = false;
     this.lf = loadF(this.sex, 'sandbag', this.load.sandbag);
-    this.cyc = 0.44;
+    this.cyc = 0.55;
     this.realBy(this.total / 1.2 * this.cyc);          // ~1,2 m por zancada (≈83 zancadas)
     this.per = this.total / (this.ref / this.cyc);
   }
+  zone() { return [0.74, 0.92]; }
   update(dt, I) {
     this.t += dt;
-    const ef = this.ef, tD = 0.22 / ef ** 0.6, tU = 0.19;
-    // ← pierna izquierda, → pierna derecha: hay que alternar, una zancada cada toque
-    const want = this.nextLeg, other = want === 'L' ? 'R' : 'L';
-    if (I.pressed(want)) {
-      if (this.st === 'stand' || (this.st === 'up' && this.timer > tU * 0.4)) this.queued = true;
-    } else if (I.pressed(other) || I.pressed('A')) {
-      if (!this._wf || this.t - this._wf > 0.8) { this._wf = this.t; this.race.flash(`Ahora la pierna ${want === 'L' ? 'izquierda ←' : 'derecha →'}`, 'meh', 0.7); }
-    }
-    if (this.st === 'stand') { if (this.queued) { this.queued = false; this.st = 'down'; this.timer = 0; } }
-    else if (this.st === 'down') {
-      this.timer += dt;
-      if (this.timer >= tD) { this.race.sfx('thud', { soft: true }); this.st = 'up'; this.timer = 0; this.spend((0.18 / this.lf) * this.kw); this.step = Math.min(this.per * ef, this.total - this.x); }
+    const ef = this.ef, tD = 0.32 / ef ** 0.6, tU = this.slowUp ? 0.32 : 0.19;
+    const key = this.leg, other = key === 'L' ? 'R' : 'L';
+    if (this.st === 'stand') {
+      if (I.down(key)) { this.st = 'down'; this.depth = 0; this.bottomT = 0; }
+      else if (I.pressed(other) || I.pressed('A')) { if (!this._wf || this.t - this._wf > 0.8) { this._wf = this.t; this.race.flash(`Ahora la pierna ${key === 'L' ? 'izquierda ←' : 'derecha →'}`, 'meh', 0.7); } }
+    } else if (this.st === 'down') {
+      this.depth = Math.min(1, this.depth + dt / tD);
+      if (this.depth >= 1) { this.bottomT += dt; this.spend(0.12 * this.kw * dt / this.lf); }   // quedarse abajo cansa
+      if (!I.down(key)) {
+        const [a] = this.zone();
+        this.st = 'up'; this.timer = 0;
+        if (this.depth < a) { this.step = 0; this.slowUp = false; this.noRep('la rodilla no tocó el piso'); }
+        else { this.race.sfx('thud', { soft: true }); this.spend((0.18 / this.lf) * this.kw); this.step = Math.min(this.per * ef, this.total - this.x); this.slowUp = this.bottomT > 0.12; }
+        this.d0 = this.depth;
+      }
     } else if (this.st === 'up') {
       this.timer += dt;
-      if (this.timer >= tU) { const b0 = this.x; this.x += this.step; this.add(this.step); this.st = 'stand'; this.leg = this.leg === 'L' ? 'R' : 'L'; if (Math.floor(this.x / 20) > Math.floor(b0 / 20) && !this.finished) this.good(Math.floor(this.x / 20) * 20 + ' m'); }
+      if (this.timer >= tU) {
+        const b0 = this.x; this.x += this.step; this.add(this.step); this.st = 'stand';
+        if (this.step > 0) this.leg = this.leg === 'L' ? 'R' : 'L';      // si fue no-rep, repites con la misma pierna
+        if (Math.floor(this.x / 20) > Math.floor(b0 / 20) && !this.finished) this.good(Math.floor(this.x / 20) * 20 + ' m');
+      }
     }
     // fase visual: 0 de pie, 0.25 abajo (pierna izq) / 0.75 abajo (der)
-    const dep = this.st === 'down' ? clamp(this.timer / tD, 0, 1) : this.st === 'up' ? 1 - this.timer / tU : 0;
-    this.ph = (this.leg === 'L' ? 0 : 0.5) + dep * 0.25;
+    const dep = this.st === 'down' ? this.depth : this.st === 'up' ? (this.d0 || 1) * (1 - this.timer / tU) : 0;
+    this.ph = (this.leg === 'L' ? 0 : 0.5) + clamp(dep, 0, 1) * 0.25;
     this.av.set('lunge', this.ph, { blend: 0.08 });
-    const move = this.st === 'up' ? (this.timer / tU) * this.step : 0;
+    const move = this.st === 'up' ? clamp(this.timer / tU, 0, 1) * this.step : 0;
     const sh = shuttle(Math.min(this.x + move, this.total - 1e-3)); this.sh = sh;
     place(this.av, _v.set(this.L.pos.x + sh.x, 0, this.L.pos.z), sh.dir > 0 ? FACE.px : FACE.nx);
     this.av.update(0);
@@ -457,10 +491,13 @@ class Lunges extends Station {
     this.bag.position.set(n.x - 0.04, n.y - 0.02, n.z);
     this.bag.rotation.set(0, (this.sh?.dir ?? 1) > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
   }
-  hud() { return { gauge: null, big: this.done.toFixed(0) + ' m', sub: `de 100 m · saco ${this.load.sandbag} kg · carril ${Math.min(5, (this.sh?.lap ?? 0) + 1)}/5` }; }
-  // pierna del próximo toque: de pie, la que sigue; a mitad de zancada, la otra
-  get nextLeg() { return this.st === 'stand' ? this.leg : (this.leg === 'L' ? 'R' : 'L'); }
-  hints() { return [['← →', 'alterna las piernas'], ['', `ahora: ${this.nextLeg === 'L' ? '← izquierda' : '→ derecha'}`]]; }
+  hud() {
+    const down = this.st === 'down';
+    return { gauge: gauge('depth', { val: down ? this.depth : 0, zone: this.zone(), label: down ? 'RODILLA AL PISO · ¡SUELTA EN VERDE!' : `MANTÉN ${this.nextLeg === 'L' ? '←' : '→'} PARA BAJAR` }), big: this.done.toFixed(0) + ' m', sub: `de 100 m · saco ${this.load.sandbag} kg · carril ${Math.min(5, (this.sh?.lap ?? 0) + 1)}/5` };
+  }
+  // pierna del próximo toque: de pie o bajando, la actual; subiendo, la otra (si la zancada contó)
+  get nextLeg() { return this.st === 'up' && this.step > 0 ? (this.leg === 'L' ? 'R' : 'L') : this.leg; }
+  hints() { return [[this.nextLeg === 'L' ? 'MANTÉN ←' : 'MANTÉN →', `bajas con la pierna ${this.nextLeg === 'L' ? 'izquierda' : 'derecha'}`], ['SUELTA en verde', 'rodilla al piso (antes = no rep)']]; }
   cam() { const sh = this.sh || { x: 0, dir: 1 }; const x = this.L.pos.x + sh.x; return { pos: _v.set(x + sh.dir * 2.4, 1.6, this.L.pos.z + 3.2 * (this.L.pos.z < 0 ? 1 : -1)), look: _w.set(x, 0.9, this.L.pos.z) }; }
 }
 
@@ -581,7 +618,7 @@ export function aiStation(world, av, id, lane, f, t, rate = 1) {
     case 'push': {
       const d = f * 50, n = Math.min(3, Math.floor(d / 12.5)), x = d - n * 12.5, dir = n % 2 ? -1 : 1;
       const sx = dir > 0 ? L.pos.x + 1 + x : L.pos.x + 13.5 - x;
-      const s = world.eq.push[lane]; s.position.set(sx, 0, L.pos.z); s.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+      const s = world.eq.push[lane]; s.position.set(sx, 0, L.pos.z); s.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       av.group.position.set(sx - dir * 1.18, 0, L.pos.z); av.group.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
       av.set('push', (d / 1.25) % 1, { effort: 1 });
       return;

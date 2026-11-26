@@ -9,7 +9,7 @@ import { Race, GEARS, SEG_NAMES } from './race.js';
 import { division, validDivision, STATIONS, RECORDS, fmt, COUNTRIES, fieldDistribution, PAPA, LOADS, ageGroup as agOf, ageFactor } from './data.js';
 import { Audio } from './audio.js';
 import { Room, newCode } from './online.js';
-import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace, heatRange, trainsLeft, DAILY } from './career.js';
+import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace, heatRange, trainsLeft, DAILY, drillWait, COOLDOWN_H, ovrFor } from './career.js';
 import { REF } from './stations.js';
 // Entrenar está apagado por ahora (Marco lo pidió el 2026-11-25); el código queda para volver a prenderlo
 const TRAINING_ON = true;
@@ -154,7 +154,7 @@ function renderSetup() {
   $('#fPartnerBox').hidden = S.format !== 'doubles';
   $('#fPartner [data-v=papa]').disabled = S.cat !== 'M';
   if (S.partner === 'papa' && S.cat !== 'M') { S.partner = 'ai'; return renderSetup(); }
-  $('#fPartnerNote').textContent = S.partner === 'papa' ? 'Papá (42) corre a tu ritmo igual que una pareja IA, y su fuerza en cada estación sale de su carrera real en Tampa (más fuerte en Wall Balls y Lunges que en BBJ).' : S.partner === 'p2' ? 'J1: WASD + ESPACIO + E · J2: flechas + ENTER + SHIFT derecho.' : S.cat === 'M' ? 'Solo Doubles Men: papá puede ser tu pareja.' : '';
+  $('#fPartnerNote').textContent = S.partner === 'papa' ? `Papá (42${TRAINING_ON ? ` · nivel ${ovrFor(fieldDistribution(division('singles', 'M', 'open')), PAPA.total / 60)}, por su 1:33:20 en Tampa` : ''}) corre a tu ritmo igual que una pareja IA, y su fuerza en cada estación sale de su carrera real (más fuerte en Wall Balls y Lunges que en BBJ).` : S.partner === 'p2' ? 'J1: WASD + ESPACIO + E · J2: flechas + ENTER + SHIFT derecho.' : S.cat === 'M' ? 'Solo Doubles Men: papá puede ser tu pareja.' : '';
   const d = division(S.format, S.cat, S.level);
   $('#divName').textContent = d.name;
   const notes = {
@@ -211,6 +211,11 @@ function renderEditor() {
   $('#eHeight').innerHTML = HEIGHTS.map(([h, n]) => `<button data-v="${h}" class="${h === (S.height || 1) ? 'on' : ''}">${n}</button>`).join('');
   for (const b of $$('#eHeight button')) b.onclick = () => { S.height = +b.dataset.v; renderEditor(); };
   const nm = $('#eName'); nm.value = S.name; nm.oninput = () => { S.name = nm.value.trim(); store.set('aguanteSetup', S); };
+  const ea = $('#eAge'); ea.value = S.age || 16;
+  const ageNote = () => $('#eAgeG').textContent = `Grupo de edad ${agOf('singles', S.age || 16)} (Singles)` + (ageFactor(S.age || 16) < 0.999 ? ` · rendimiento ${Math.round(ageFactor(S.age || 16) * 100)}%` : '');
+  ea.onchange = () => { S.age = clamp(+ea.value || 16, 16, 89); ea.value = S.age; store.set('aguanteSetup', S); ageNote(); }; ageNote();
+  const ec = $('#eCountry'); if (!ec.options.length) ec.innerHTML = COUNTRIES.map(c => `<option>${c}</option>`).join('');
+  ec.value = S.country; ec.onchange = () => { S.country = ec.value; store.set('aguanteSetup', S); };
   store.set('aguanteSetup', S);
   buildPreview();
 }
@@ -240,17 +245,19 @@ function renderTrain() {
   $('#tOvr').textContent = o; $('#tDay').textContent = P.day; $('#tSes').textContent = P.sessions; $('#tRaces').textContent = P.races;
   $('#tFat').style.width = P.fatigue + '%'; $('#tFat').style.background = P.fatigue < 40 ? 'var(--good)' : P.fatigue < 70 ? 'var(--meh)' : 'var(--bad)';
   $('#tFatN').textContent = Math.round(P.fatigue) + '%';
-  $('#tFatNote').textContent = P.fatigue >= 70 ? 'Muy cansado: entrenar ahora rinde poco y en carrera arrancas con menos energía. Descansa.' : P.fatigue >= 40 ? 'Algo cansado: un día de descanso te ayuda.' : 'Fresco para entrenar o competir.';
+  $('#tFatNote').textContent = P.fatigue >= 70 ? 'Muy cansado: entrenar ahora rinde poco y en carrera arrancas con menos energía. Descansa: baja sola 10 por hora.' : P.fatigue >= 40 ? 'Algo cansado: la fatiga baja sola con el tiempo (10 por hora).' : 'Fresco para entrenar o competir.';
   $('#tStats').innerHTML = STATS.map(st => `<div class="tst" title="${st.desc}"><span>${st.name}</span><div class="mbar"><i style="width:${P.stats[st.id]}%"></i></div><b>${Math.round(P.stats[st.id])}</b></div>`).join('');
-  $('#tList').innerHTML = TRAININGS.map(t => `<button class="btn" data-t="${t.id}">${t.name}<small>${Object.keys(t.gains).map(k => STATS.find(x => x.id === k).name).join(' · ')}${t.fatigue > 0 ? ' · cansa ' + t.fatigue : ' · recupera'}</small></button>`).join('');
+  const waitTxt = ms => { const m = Math.ceil(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`; };
+  $('#tList').innerHTML = TRAININGS.map(t => { const w = drillWait(P, t); return `<button class="btn" data-t="${t.id}">${t.name}<small>${w ? `otra vez en ${waitTxt(w)}` : Object.keys(t.gains).map(k => STATS.find(x => x.id === k).name).join(' · ') + (t.fatigue > 0 ? ' · cansa ' + t.fatigue : ' · recupera')}</small></button>`; }).join('');
   const left = trainsLeft(P);
   $('#tLeft').innerHTML = left ? `Entrenos de hoy: <b>${left}</b> de ${DAILY}` : `<span style="color:var(--meh)">Ya hiciste los ${DAILY} entrenos de hoy. Vuelve mañana (puedes descansar o correr).</span>`;
-  for (const b of $$('#tList button')) { const t = TRAININGS.find(t => t.id === b.dataset.t); b.disabled = !left && t.kind !== 'rest'; b.onclick = () => startTraining(t); }
+  for (const b of $$('#tList button')) { const t = TRAININGS.find(t => t.id === b.dataset.t); b.disabled = drillWait(P, t) > 0 || (!left && t.kind !== 'rest'); b.onclick = () => startTraining(t); }
   $('#tLog').innerHTML = P.log.length ? P.log.map(l => `<div>Día ${l.day} · ${escapeHtml(l.t)}${l.q != null && !/Descanso/.test(l.t) ? ' · ' + l.q + '%' : ''} <span>${Object.entries(l.up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(', ')}</span></div>`).join('') : '<div>Todavía no entrenaste.</div>';
 }
 $('#tReset').onclick = () => { if ($('#tReset').dataset.sure) { resetProfile(); delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; renderTrain(); } else { $('#tReset').dataset.sure = 1; $('#tReset').textContent = '¿Seguro? Pulsa otra vez'; setTimeout(() => { delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; }, 3000); } };
 function startTraining(t) {
   initAudio(); Audio.sfx('ui');
+  if (drillWait(loadProfile(), t) > 0) { renderTrain(); return; }
   if (t.kind === 'rest') { const P = loadProfile(); train(P, t, 1); Audio.sfx('good'); renderTrain(); return; }
   if (!trainsLeft(loadProfile())) { renderTrain(); return; }
   if (t.kind === 'station') { startRace(t.st, null, t); return; }
@@ -290,7 +297,7 @@ function tapHit() {
     tap.done = true;
     const q = tap.hits.reduce((a, b) => a + b, 0) / tap.t.reps;
     const P = loadProfile(); const up = train(P, tap.t, q);
-    $('#tapTip').innerHTML = P.noQuota ? 'Ya no quedaban entrenos hoy: este no cuenta.' : `Calidad <b>${Math.round(q * 100)}%</b> · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
+    $('#tapTip').innerHTML = P.noQuota ? 'Este entreno ya no estaba disponible: no cuenta.' : `Calidad <b>${Math.round(q * 100)}%</b> · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
     const cur = tap;
     setTimeout(() => { if (tap === cur) { $('#tapBox').hidden = true; tap = null; } renderTrain(); }, 1800);
   }
@@ -556,13 +563,13 @@ function showCard() {
     row: ['1.000 m', 'damper 6'], farmers: ['2 × ' + l.farmers + ' kg', '200 m'], lunges: [l.sandbag + ' kg', '100 m', 'rodilla al piso'], wb: ['100 reps', l.ball + ' kg', 'blanco ' + (l.target ?? (sex === 'F' ? 2.7 : 3)).toFixed(2).replace('.', ',') + ' m'],
   }[st.id];
   const how = {
-    ski: 'Aprieta ← → o ESPACIO lo más rápido que puedas. ↑ ↓ cambia el damper: alto rinde más por jalón pero cansa más.',
+    ski: 'Jala con ← → o ESPACIO a ritmo: la aguja en verde. Más rápido que el verde son jalones cortos que cansan. ↑ ↓ cambia el damper.',
     push: 'Aprieta ← → o ESPACIO lo más rápido que puedas. No dejes que se pare: arrancarlo de nuevo cuesta.',
     pull: 'Aprieta ← → o ESPACIO lo más rápido que puedas: cada toque es un jalón. Al pasar los 12,5 m corres al otro lado.',
-    bbj: 'Mantén ESPACIO: burpees y saltos seguidos (~2 m). Suelta para respirar de pie. 80 m = 4 carriles de 20 m.',
-    row: 'Aprieta ← → o ESPACIO lo más rápido que puedas. ↑ ↓ cambia el damper: alto rinde más por jalón pero cansa más.',
+    bbj: 'ESPACIO = burpee. Al subir, ESPACIO otra vez con la aguja en verde = salto largo (~2 m). 80 m = 4 carriles de 20 m.',
+    row: 'Rema con ← → o ESPACIO a ritmo: la aguja en verde. Más rápido que el verde son paladas cortas que cansan. ↑ ↓ cambia el damper.',
     farmers: 'Mantén → para caminar. Si el agarre se acaba se caen: suéltalas antes con ESPACIO. 200 m = 10 carriles de 20 m.',
-    lunges: 'Alterna ← → (izquierda, derecha…): cada toque es una zancada con esa pierna (~1,2 m). 100 m = 5 carriles de 20 m.',
+    lunges: 'Mantén ← para bajar y suelta en verde (rodilla al piso); luego → con la otra pierna. Soltar antes = no rep. 100 m = 5 carriles de 20 m.',
     wb: 'Cada toque de ESPACIO = sentadilla y lanzamiento. Toca justo cuando atrapas la pelota para ir sin pausas.',
   }[st.id];
   $('#hCard').innerHTML = `<div class="n">ESTACIÓN ${idx + 1} DE 8</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${how}</p>`;
@@ -596,7 +603,7 @@ function showResults() {
     const P = loadProfile(); const up = train(P, t, q);
     $('#rDiv').textContent = 'ENTRENAMIENTO · DÍA ' + P.day;
     $('#rTime').textContent = fmt(got);
-    $('#rPos').innerHTML = `${escapeHtml(t.name)} · calidad <b>${Math.round(q * 100)}%</b> · ${P.noQuota ? 'ya no quedaban entrenos hoy: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · quedan ${trainsLeft(P)} hoy · fatiga ${Math.round(P.fatigue)}%`;
+    $('#rPos').innerHTML = `${escapeHtml(t.name)} · calidad <b>${Math.round(q * 100)}%</b> · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · quedan ${trainsLeft(P)} hoy · fatiga ${Math.round(P.fatigue)}%`;
     $('#rBadges').innerHTML = Object.entries(up).map(([k, v]) => `<span class="acc">${STATS.find(x => x.id === k).name} +${v}</span>`).join('');
     $('#rSplits').innerHTML = ''; $('#rHeat').innerHTML = '';
     $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';
