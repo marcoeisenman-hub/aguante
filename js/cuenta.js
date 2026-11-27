@@ -14,9 +14,11 @@ const put = (k, v) => { try { origSet.call(LS, k, v); } catch { } };
 const del = k => { try { origRemove.call(LS, k); } catch { } };
 const num = k => Number(get(k) || 0);
 const META = ['hrSyncUser', 'hrSeq', 'hrSent', 'hrBase'];
+// identificador de este compu (al azar, no dice nada de ti): para que el servidor ordene sus guardados
+const DEV = get('hrDev') || (() => { const d = Math.random().toString(36).slice(2) + Date.now().toString(36); put('hrDev', d); return d; })();
 
 let user = null, timer = null, busy = null, lastError = '';
-export const cuenta = { get user() { return user; }, get error() { return lastError; } };
+export const cuenta = { get user() { return user; }, get error() { return lastError; }, onRemote: null };   // onRemote: la nube cambió y hay que recargar
 
 function snapshot() {
   const d = {};
@@ -57,8 +59,8 @@ function push() {
     if (!dirty()) return true;
     const seq = num('hrSeq');
     try {
-      const j = await api({ accion: 'guardar', data: snapshot() });
-      lastError = ''; put('hrBase', String(j.rev));
+      const j = await api({ accion: 'guardar', dev: DEV, seq, data: snapshot() });
+      lastError = ''; if (!j.old) put('hrBase', String(j.rev));
       if (num('hrSent') < seq) put('hrSent', String(seq));       // lo que cambió mientras subía queda pendiente
       if (dirty()) { clearTimeout(timer); timer = setTimeout(push, 1500); }
       return !dirty();
@@ -75,13 +77,16 @@ async function reconnect() {
   try {
     const j = await api(null, 3500);
     if (!j.user || j.user.usuario !== user.usuario) { user = null; return false; }
-    user = j.user; return true;
+    user = j.user;
+    // sin cambios aquí y la nube cambió (otro compu): bajar lo de la nube y recargar
+    if (!dirty() && user.rev !== num('hrBase')) { apply(user.data, user.rev); cuenta.onRemote?.(); return false; }
+    return true;
   } catch { return false; }
 }
 addEventListener('online', () => { if (user) push(); });
 addEventListener('pagehide', () => {
   if (!user || user.offline || !dirty() || busy) return;
-  navigator.sendBeacon?.('/api/cuenta', new Blob([JSON.stringify({ accion: 'guardar', data: snapshot() })], { type: 'application/json' }));
+  navigator.sendBeacon?.('/api/cuenta', new Blob([JSON.stringify({ accion: 'guardar', dev: DEV, seq: num('hrSeq'), data: snapshot() })], { type: 'application/json' }));
 });
 
 // al abrir el juego
