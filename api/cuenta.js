@@ -50,13 +50,9 @@ export default async function handler(req, res) {
     if (accion === 'guardar') {
       const u = await current(req); if (!u) return res.status(401).json({ error: 'Entra a tu cuenta' });
       const d = cleanData(b.data); if (!d) return res.status(400).json({ error: 'Progreso inválido o muy grande' });
-      // rev = hora del cambio (ms) del compu; no se acepta más de 5 min en el futuro (reloj adelantado)
-      const rev = Math.min(Math.max(0, Math.floor(Number(b.rev) || 0)), Date.now() + 5 * 60e3);
-      // solo guarda si es más nuevo que lo que hay (rev = cuándo cambiaste algo): un guardado viejo que llega tarde no pisa uno nuevo
-      const r = await db()`update hr_users set data = ${d}::jsonb, rev = ${rev}, updated_at = now() where id = ${u.id} and rev < ${rev} returning rev`;
-      if (r.length) return res.json({ ok: true, rev });
-      const cur = await db()`select data, rev from hr_users where id = ${u.id}`;
-      return res.json({ ok: false, stale: true, rev: Number(cur[0].rev), data: cur[0].data });
+      // el servidor numera cada guardado (no depende del reloj del compu)
+      const r = await db()`update hr_users set data = ${d}::jsonb, rev = rev + 1, updated_at = now() where id = ${u.id} returning rev`;
+      return res.json({ ok: true, rev: Number(r[0].rev) });
     }
 
     const usuario = String(b.usuario || '').trim().toLowerCase(), pin = String(b.pin || '');
@@ -66,8 +62,7 @@ export default async function handler(req, res) {
     if (accion === 'registro') {
       const d = b.data == null ? null : cleanData(b.data);
       if (b.data != null && !d) return res.status(400).json({ error: 'Tu progreso es muy grande para guardarlo' });
-      const rev = Math.min(Math.max(0, Math.floor(Number(b.rev) || 0)), Date.now() + 5 * 60e3);
-      const r = await db()`insert into hr_users (usuario, pin_hash, data, rev) values (${usuario}, ${await hashPin(pin)}, ${d}::jsonb, ${rev})
+      const r = await db()`insert into hr_users (usuario, pin_hash, data, rev) values (${usuario}, ${await hashPin(pin)}, ${d}::jsonb, 1)
                            on conflict (usuario) do nothing returning id, usuario, data, rev`;
       if (!r.length) return res.status(409).json({ error: 'Ese usuario ya existe' });
       await startSession(res, r[0].id);
