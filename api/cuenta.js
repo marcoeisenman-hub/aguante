@@ -50,7 +50,8 @@ export default async function handler(req, res) {
     if (accion === 'guardar') {
       const u = await current(req); if (!u) return res.status(401).json({ error: 'Entra a tu cuenta' });
       const d = cleanData(b.data); if (!d) return res.status(400).json({ error: 'Progreso inválido o muy grande' });
-      const rev = Math.floor(Number(b.rev) || 0);
+      // rev = hora del cambio (ms) del compu; no se acepta más de 5 min en el futuro (reloj adelantado)
+      const rev = Math.min(Math.max(0, Math.floor(Number(b.rev) || 0)), Date.now() + 5 * 60e3);
       // solo guarda si es más nuevo que lo que hay (rev = cuándo cambiaste algo): un guardado viejo que llega tarde no pisa uno nuevo
       const r = await db()`update hr_users set data = ${d}::jsonb, rev = ${rev}, updated_at = now() where id = ${u.id} and rev < ${rev} returning rev`;
       if (r.length) return res.json({ ok: true, rev });
@@ -65,7 +66,7 @@ export default async function handler(req, res) {
     if (accion === 'registro') {
       const d = b.data == null ? null : cleanData(b.data);
       if (b.data != null && !d) return res.status(400).json({ error: 'Tu progreso es muy grande para guardarlo' });
-      const rev = Math.floor(Number(b.rev) || 0);
+      const rev = Math.min(Math.max(0, Math.floor(Number(b.rev) || 0)), Date.now() + 5 * 60e3);
       const r = await db()`insert into hr_users (usuario, pin_hash, data, rev) values (${usuario}, ${await hashPin(pin)}, ${d}::jsonb, ${rev})
                            on conflict (usuario) do nothing returning id, usuario, data, rev`;
       if (!r.length) return res.status(409).json({ error: 'Ese usuario ya existe' });

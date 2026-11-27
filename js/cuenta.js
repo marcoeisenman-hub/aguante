@@ -10,8 +10,8 @@ const put = (k, v) => { try { origSet.call(LS, k, v); } catch { } };
 const del = k => { try { origRemove.call(LS, k); } catch { } };
 const num = k => Number(get(k) || 0);
 
-let user = null, timer = null, busy = null;
-export const cuenta = { get user() { return user; } };
+let user = null, timer = null, busy = null, lastError = '';
+export const cuenta = { get user() { return user; }, get error() { return lastError; } };
 
 function snapshot() {
   const d = {};
@@ -45,22 +45,39 @@ function changed() {
 function push() {
   if (busy) return busy.then(() => dirty() ? push() : true);
   busy = (async () => {
-    if (!user || user.offline) return false;
+    if (user?.offline && !(await reconnect())) { retry(); return false; }
+    if (!user) return false;
     if (!dirty()) return true;
     const rev = num('hrRev');
     try {
       const j = await api({ accion: 'guardar', rev, data: snapshot() });
-      if (j.ok) { if (num('hrSynced') < rev) put('hrSynced', String(rev)); }
-      else if (j.stale && j.rev > rev) apply(j.data, j.rev);      // la nube tiene algo más nuevo (otro compu): manda la nube
+      lastError = '';
+      if (j.ok || (j.stale && j.rev >= rev)) {
+        if (j.ok || j.rev === rev) { if (num('hrSynced') < rev) put('hrSynced', String(rev)); }   // guardado (o ya estaba de un intento anterior)
+        else if (j.rev > num('hrRev')) apply(j.data, j.rev);       // la nube tiene algo más nuevo que todo lo de aquí (otro compu)
+      }
       return !dirty();
     } catch (e) {
       if (e.status === 401) { user = null; return false; }       // la sesión venció
-      clearTimeout(timer); timer = setTimeout(push, 15000);        // sin internet: lo intenta de nuevo
+      if (e.status === 400) { lastError = e.message; return false; }   // el servidor no lo acepta (p. ej. muy grande): no insistir
+      retry();                                                     // sin internet: lo intenta de nuevo
       return false;
     }
   })().finally(() => { busy = null; });
   return busy;
 }
+function retry() { clearTimeout(timer); timer = setTimeout(push, 15000); }
+// abriste sin internet: cuando vuelva, revisa la sesión y sigue subiendo
+async function reconnect() {
+  try {
+    const j = await api(null, 3500);
+    if (!j.user || j.user.usuario !== user.usuario) { user = null; return false; }
+    user = j.user;
+    if (j.user.rev > num('hrRev')) apply(j.user.data, j.user.rev);
+    return true;
+  } catch { return false; }
+}
+addEventListener('online', () => { if (user) push(); });
 addEventListener('pagehide', () => {
   if (!user || user.offline || !dirty()) return;
   navigator.sendBeacon?.('/api/cuenta', new Blob([JSON.stringify({ accion: 'guardar', rev: num('hrRev'), data: snapshot() })], { type: 'application/json' }));
@@ -77,7 +94,7 @@ export async function cuentaInit() {
     else if (dirty()) push();                                                  // este compu tiene cambios sin subir
     put('hrSyncUser', user.usuario);
   } catch {
-    if (mine) user = { usuario: mine, offline: true };      // sin internet: sigue marcando tus cambios para subirlos después
+    if (mine) { user = { usuario: mine, offline: true }; retry(); }   // sin internet: sigue marcando tus cambios y los sube cuando vuelva
   }
 }
 // crear cuenta: se lleva el progreso que tienes ahora en este compu
@@ -97,8 +114,8 @@ export async function entrar(usuario, pin) {
 }
 // salir: primero sube lo último. Si no se puede (sin internet), NO borra nada y avisa.
 export async function salir() {
-  if (user?.offline) throw new Error('Sin internet: conéctate para salir sin perder tu progreso');
-  if (!(await push())) throw new Error('No se pudo guardar tu progreso. Revisa el internet y prueba otra vez.');
+  if (user?.offline && !(await reconnect())) throw new Error('Sin internet: conéctate para salir sin perder tu progreso');
+  if (!(await push())) { if (lastError) throw new Error(lastError); throw new Error('No se pudo guardar tu progreso. Revisa el internet y prueba otra vez.'); }
   await api({ accion: 'salir' });
   user = null; clearTimeout(timer);
   for (const k of [...KEYS, 'hrSyncUser', 'hrRev', 'hrSynced']) del(k);

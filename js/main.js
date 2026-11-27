@@ -479,6 +479,7 @@ function renderCuenta() {
   const u = cuenta.user;
   $('#cOut').hidden = !!u; $('#cIn2').hidden = !u; $('#cMsg').textContent = '';
   if (u) $('#cName').textContent = u.usuario + (u.offline ? ' (sin internet: se guarda cuando vuelva)' : '');
+  if (u && cuenta.error) { $('#cMsg').style.color = 'var(--bad)'; $('#cMsg').textContent = cuenta.error; }
   $('#hCuenta').textContent = u ? `Mi cuenta · ${u.usuario}` : 'Mi cuenta · guardar mi progreso';
 }
 async function cuentaDo(fn, reload) {
