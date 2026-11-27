@@ -267,8 +267,9 @@ function trainGoal() {
   return `${String(n).replace('.', ',')}${s.unit === 'reps' ? ' reps' : ' m'}`;
 }
 function medalLine(fmtNeed) {
-  const tired = tiredOf(loadProfile());
-  return TIERS.slice(0, 3).map(([id, th, up]) => { const need = th / tired; return `<b class="tier t${id}">${MEDAL[id]}</b> ${need > 1 ? 'muy cansado: no alcanza' : fmtNeed(need)} <i>(+${up} nivel)</i>`; }).join(' · ');
+  const P = loadProfile(), tired = tiredOf(P), half = overall(P) >= 85 ? 0.5 : 1;
+  // el juego redondea la nota al %: alcanza con (umbral − 0,5 %) / fatiga
+  return TIERS.slice(0, 3).map(([id, th, up]) => { const need = (th - 0.005) / tired; return `<b class="tier t${id}">${MEDAL[id]}</b> ${need > 1 ? 'muy cansado: no alcanza' : fmtNeed(Math.min(1, need))} <i>(+${up * half} nivel)</i>`; }).join(' · ');
 }
 function startTraining(t) {
   initAudio(); Audio.sfx('ui');
@@ -606,7 +607,7 @@ function showCard() {
   }[st.id];
   let medals = '';
   if (training) spec.splice(0, spec.length, ...spec.filter(x => !/^[\d.,]+ (m|reps)$|^\d+ × [\d,]+ m$/.test(x)), 'entreno: ' + trainGoal());   // el entreno es más corto que la estación
-  if (race.practice && training) { const exp = REF[race.active.sex][training.st] * training.part; medals = `<div class="medals">${medalLine(q => 'en ' + fmt(exp * 1.2 / q) + ' o menos')}</div>`; }
+  if (race.practice && training) { const exp = REF[race.active.sex][training.st] * training.part; medals = `<div class="medals">${medalLine(q => 'en ' + fmt(exp * 1.2 / q) + ' o menos')}<br><i>sin penalizaciones (cada no rep o falta te baja 10 %)</i></div>`; }
   $('#hCard').innerHTML = `<div class="n">${training ? 'ENTRENAMIENTO' : `ESTACIÓN ${idx + 1} DE 8`}</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${training ? how.replace(/ [\d.,]+ (m|reps) = [^.]*\./, '') : how}</p>${medals}`;
   $('#hCard').classList.add('show'); cardT = race.practice ? 5 : 6; cardShown = true;
 }

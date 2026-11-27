@@ -82,12 +82,13 @@ function markOf(st) { return { streak: st.streak || 0, ...(st.markT != null && s
 const MASH_REF = 7;             // toques por segundo = ritmo de referencia
 function mashInit(st) { st.mLast = null; st.mT = -1; st.rate = 0; st.mCost = 1; }
 function mashStep(st, dt, I) {
-  let q = null;
-  for (const k of ['L', 'R']) if (I.pressed(k)) {
-    if (k === st.mLast) { if (!st._wf || st.t - st._wf > 0.8) { st._wf = st.t; st.race.flash('¡Alterna ← →!', 'meh', 0.6); } continue; }
-    const gap = st.mT < 0 ? 0.15 : Math.max(0.02, st.t - st.mT);
-    st.rate = st.mT < 0 ? 5 : lerp(st.rate, 1 / gap, 0.3);
-    st.mLast = k; st.mT = st.t;
+  let q = null, n = 0;
+  // si llegan las dos flechas en el mismo cuadro, primero la que toca (la que no fue la última)
+  for (const k of st.mLast === 'L' ? ['R', 'L'] : ['L', 'R']) if (I.pressed(k)) {
+    if (k === st.mLast) { if (!n && (!st._wf || st.t - st._wf > 0.8)) { st._wf = st.t; st.race.flash('¡Alterna ← →!', 'meh', 0.6); } continue; }
+    const gap = n ? 0.1 : st.mT < 0 ? 0.15 : Math.max(0.02, st.t - st.mT);
+    if (!n) st.rate = st.mT < 0 ? 5 : lerp(st.rate, 1 / gap, 0.3);
+    st.mLast = k; st.mT = st.t; n++;
     q = (q || 0) + (gap < 0.1 ? 0.55 : 1);                 // más de 10 por segundo: toques cortos que casi no empujan
   }
   if (st.mT >= 0 && st.t - st.mT > 0.4) st.rate = Math.max(0, st.rate - dt * 10);
