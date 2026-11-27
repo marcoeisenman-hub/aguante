@@ -128,9 +128,11 @@ export async function entrar(usuario, pin) {
 // salir: primero sube lo último. Si no se puede (sin internet), NO borra nada y avisa.
 export async function salir() {
   if (user?.offline && !(await reconnect())) throw new Error('Sin internet: conéctate para salir sin perder tu progreso');
-  const keep = pending; if (pending && !dirty()) pending = null;   // lo del otro compu ya está en la nube: no hace falta bajarlo para salir
-  if (!(await push())) { pending = pending || keep; throw new Error(lastError || 'No se pudo guardar tu progreso. Revisa el internet y prueba otra vez.'); }
-  try { await api({ accion: 'salir' }); } catch (e) { pending = pending || keep; throw e; }   // si no se pudo cerrar, sigue pendiente
+  // lo del otro compu ya está en la nube: para salir no hace falta bajarlo (si no salimos, se vuelve a dejar pendiente)
+  const parked = pending && !dirty() ? pending : null; if (parked) pending = null;
+  const unpark = () => { if (parked && !pending && !dirty() && parked.rev > num('hrBase')) pending = parked; };
+  if (!(await push())) { unpark(); throw new Error(lastError || 'No se pudo guardar tu progreso. Revisa el internet y prueba otra vez.'); }
+  try { await api({ accion: 'salir' }); } catch (e) { unpark(); throw e; }   // si no se pudo cerrar, sigue pendiente
   user = null; clearTimeout(timer);
   for (const k of [...KEYS, ...META]) del(k);
 }
