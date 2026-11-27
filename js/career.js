@@ -40,6 +40,8 @@ const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMo
 // S ≥ 90 % · A ≥ 75 % · B ≥ 55 % · C ≥ 35 % · D: no sube. La fatiga baja la nota. Arriba de nivel 85 sube la mitad.
 export const TIERS = [['S', 0.9, 3], ['A', 0.75, 2], ['B', 0.55, 1], ['C', 0.35, 0.5], ['D', 0, 0]];
 export function tierOf(q) { return TIERS.find(t => q >= t[1]); }
+export const MEDAL = { S: 'ORO', A: 'PLATA', B: 'BRONCE', C: 'PARTICIPACIÓN', D: 'SIN MEDALLA', '–': '–' };
+export function tiredOf(p) { return Math.max(0.25, 1 - p.fatigue / 130); }
 export const COOLDOWN_H = 3;   // horas hasta poder repetir el mismo drill
 export function drillWait(p, t) { const at = p.lastT?.[t.id] || 0; return Math.max(0, at + COOLDOWN_H * 3600e3 - Date.now()); }
 export function trainsLeft(p) { return Math.max(0, p.tokens ?? DAILY); }
@@ -47,7 +49,7 @@ export function trainsLeft(p) { return Math.max(0, p.tokens ?? DAILY); }
 // cuánto sube: más difícil cerca de 100, menos si estás cansado; q = qué tan bien hiciste el mini-juego (0..1)
 export function train(p, t, q) {
   q = Math.round(Math.max(0, Math.min(1, q)) * 100) / 100;
-  const tired = Math.max(0.25, 1 - p.fatigue / 130);
+  const tired = tiredOf(p);
   const up = {}, before = overall(p);
   if (drillWait(p, t) > 0) { p.lastOvr = [before, before]; p.noQuota = true; p.lastTier = '–'; p.lastEq = null; return {}; }
   if (t.kind !== 'rest') {

@@ -64,42 +64,48 @@ class Station {
   dispose() { }
 }
 
-// =====================================================================
-// Medidor de timing (ski, row, trineos): la aguja sube y vuelve a empezar con cada toque.
-// Toca (ESPACIO / ← →) con la aguja en verde = jalón/empujón completo. Antes o después rinde menos.
-// Si la dejas pasar, se pierde ese jalón. Aplastar no sirve: los toques muy seguidos no cuentan.
-// Cansado, el verde se achica.
-const BEAT_PERF = 0.74;                 // dónde cae (en promedio) un toque perfecto: sirve para calibrar
-function beatInit(st, P, zone = [0.62, 0.86]) { st.bP = P; st.bT = 0; st.bZ = zone; st.bSpam = 0; st.lastQ = 1; }
-function beatZone(st) { const [a, b] = st.bZ, w = (b - a) * lerp(0.7, 1, clamp(st.ef, 0, 1)), c = (a + b) / 2; return [c - w / 2, c + w / 2]; }
-function beatStep(st, dt, I) {
-  const seen = st.bT;                                   // la aguja que el jugador vio al tocar
-  st.bT += dt / st.bP;
-  if (I.pressed('A') || I.pressed('L') || I.pressed('R')) {
-    if (seen < 0.25) {                                   // aplastando: no cuenta
-      if (++st.bSpam >= 2 && (!st._wf || st.t - st._wf > 1)) { st._wf = st.t; st.race.flash('¡Espera el verde!', 'meh', 0.7); }
-      return null;
-    }
-    st.bSpam = 0;
-    const [a, b] = beatZone(st), x = Math.min(1, seen), dist = x < a ? a - x : x > b ? x - b : 0;
-    st.bT = 0; st.lastQ = Math.max(0.2, 1 - dist * 5);
-    return st.lastQ;
+// dónde cayó tu último toque en un medidor con verde (se ve 1,6 s): good = verde, meh = casi, bad = rojo
+function markHit(st, val, q) {
+  st.mark = clamp(val, 0, 1); st.markQ = q; st.markT = st.t;
+  // racha: 3 o más verdes seguidos te motivan y recuperas un poco de energía en cada verde
+  st.streak = q === 'good' ? (st.streak || 0) + 1 : 0;
+  if (st.streak >= 3) {
+    st.me.energy = Math.min(100, st.me.energy + Math.min(3, 0.6 * (st.streak - 1)));
+    if (st.streak % 5 === 0 && st.me === st.race.active) st.race.flash(`¡RACHA x${st.streak}! más motivado: +energía`, 'good', 1);
   }
-  if (st.bT >= 1.15) { st.bT = 0; st.lastQ = 0; return 0; }   // se te pasó
-  return null;
 }
-function beatGauge(st, label) {
-  const q = st.lastQ, txt = q >= 0.99 ? '¡PERFECTO!' : q >= 0.7 ? 'casi' : q > 0 ? 'fuera del verde' : 'se te pasó';
-  return gauge('timing', { val: Math.min(1, st.bT), zone: beatZone(st), label: `${label} · ${txt}` });
+function markOf(st) { return { streak: st.streak || 0, ...(st.markT != null && st.t - st.markT < 1.6 ? { mark: st.mark, markQ: st.markQ } : {}) }; }
+
+// =====================================================================
+// Apretar rápido (ski, row, trineos): ALTERNA ← → lo más rápido que puedas. La misma tecla dos veces no cuenta.
+// Hasta ~9 toques por segundo cuesta lo normal; más rápido te quemas (la energía baja fuerte) y pasado 10 casi no suma.
+const MASH_REF = 7;             // toques por segundo = ritmo de referencia
+function mashInit(st) { st.mLast = null; st.mT = -1; st.rate = 0; st.mCost = 1; }
+function mashStep(st, dt, I) {
+  let q = null;
+  for (const k of ['L', 'R']) if (I.pressed(k)) {
+    if (k === st.mLast) { if (!st._wf || st.t - st._wf > 0.8) { st._wf = st.t; st.race.flash('¡Alterna ← →!', 'meh', 0.6); } continue; }
+    const gap = st.mT < 0 ? 0.15 : Math.max(0.02, st.t - st.mT);
+    st.rate = st.mT < 0 ? 5 : lerp(st.rate, 1 / gap, 0.3);
+    st.mLast = k; st.mT = st.t;
+    q = (q || 0) + (gap < 0.1 ? 0.55 : 1);                 // más de 10 por segundo: toques cortos que casi no empujan
+  }
+  if (st.mT >= 0 && st.t - st.mT > 0.4) st.rate = Math.max(0, st.rate - dt * 10);
+  st.mCost = 1 + Math.max(0, st.rate - 9) * 0.6;
+  return q;
+}
+function mashGauge(st, label) {
+  const hot = st.rate > 9.5;
+  return gauge('speed', { val: clamp(st.v / (st.vt * 1.5), 0, 1), label: hot ? '¡TE ESTÁS QUEMANDO! baja un poco el ritmo' : label });
 }
 
 // =====================================================================
 // Máquinas (SkiErg y Row): timing de jalón (ver arriba).
 // ↑ ↓ ajusta el damper como en la máquina real: alto = cada jalón rinde más pero cansa más; bajo = más liviano.
-function ergInit(st, cycle, P) {
+function ergInit(st, cycle) {
   st.cycle = cycle; st.v = 0; st.vt = st.total / st.ref; st.c1 = 1.1; st.c0 = 0.35 * st.vt;
-  beatInit(st, P);
-  st.imp = (st.c0 + st.c1 * st.vt) * P * BEAT_PERF;      // un jalón perfecto cada ~0,74·P s = ritmo de referencia (damper 5)
+  mashInit(st);
+  st.imp = (st.c0 + st.c1 * st.vt) / MASH_REF;           // ~7 toques por segundo = ritmo de referencia (damper 5)
   st.damper = st.me.damper ?? 6; st.lastT = -1; st.ph = 0; st.pace = 0; st.spm = 0; st.rate = 0;
 }
 function ergStep(st, dt, I) {
@@ -108,11 +114,11 @@ function ergStep(st, dt, I) {
   st.me.damper = st.damper;
   const d = st.damper, g = 0.75 + 0.05 * d, k = 0.8 + 0.04 * d;
   const tech = 1 + (1 - (st.me.prof?.tech || 1)) * 0.15;  // técnica entrenada: rinde un poco más cada jalón
-  let q = beatStep(st, dt, I);
+  let q = mashStep(st, dt, I);
   if (q) {
     if (st.v < 0.1 * st.vt) q *= 0.7;
     st.v += st.imp * q * g * tech * st.ef;
-    st.spend(0.35 * (0.6 + 0.08 * d) * st.bP * BEAT_PERF);
+    st.spend(0.05 * (0.6 + 0.08 * d) * q * st.mCost);
   }
   st.v = Math.max(0, st.v - (st.c0 + st.c1 * st.v) * k * dt);
   st.add(st.v * dt);
@@ -124,15 +130,15 @@ function ergStep(st, dt, I) {
   st.race.loop('flywheel', 0.35, 0.3 + 0.5 * clamp(r, 0, 1.5));
 }
 function ergHud(st) {
-  return { gauge: beatGauge(st, `${st.id === 'row' ? 'PALADA' : 'JALÓN'} EN VERDE · DAMPER ${st.damper}`), big: Math.floor(st.done) + ' m', sub: (st.pace ? fmtS(st.pace) + ' /500m · ' : '') + `damper ${st.damper} (↑ ↓)` };
+  return { gauge: mashGauge(st, `VELOCIDAD · ALTERNA ← → RÁPIDO · DAMPER ${st.damper}`), big: Math.floor(st.done) + ' m', sub: (st.pace ? fmtS(st.pace) + ' /500m · ' : '') + `damper ${st.damper} (↑ ↓)` };
 }
-function ergHints(st) { return [['ESPACIO', 'toca con la aguja en verde (aplastar no sirve)'], ['↑ ↓', `damper ${st.damper}: alto = más fuerza por jalón, cansa más`]]; }
+function ergHints(st) { return [['← → ← →', 'alterna lo más rápido que puedas'], ['↑ ↓', `damper ${st.damper}: alto = más fuerza por jalón, cansa más`]]; }
 
 class Ski extends Station {
   constructor(...a) {
     super(...a);
     this.m = this.race.world.eq.ski[this.lane];
-    ergInit(this, 1.05, 0.8);
+    ergInit(this, 1.05);
     place(this.av, _v.copy(this.L.pos).addScaledVector(FACE.pz, -0.05 * ST.ski.side).add(new THREE.Vector3(0, 0, 0.5 * ST.ski.side)), this.L.face);
     this.av.group.position.set(this.L.pos.x, 0, this.L.pos.z + 0.12 * ST.ski.side);
   }
@@ -165,7 +171,7 @@ class Row extends Station {
   constructor(...a) {
     super(...a);
     this.m = this.race.world.eq.row[this.lane];
-    ergInit(this, 1.35, 1.0);
+    ergInit(this, 1.35);
     this.base = this.m.position.clone();
   }
   update(dt, I) {
@@ -211,19 +217,19 @@ class Push extends Station {
     this.lf = loadF(this.sex, 'push', this.load.push);
     // calibración: 4.5 pasos/s sostenidos ≈ tiempo de referencia
     this.vt = 50 / this.ref;               // velocidad visual objetivo (m/s)
-    this.c1 = 1.1; this.c0 = 0.35 * this.vt; beatInit(this, 0.6); this.imp = (this.c0 + this.c1 * this.vt) * this.bP * BEAT_PERF;   // un empujón perfecto por ciclo = ritmo de referencia
+    this.c1 = 1.1; this.c0 = 0.35 * this.vt; mashInit(this); this.imp = (this.c0 + this.c1 * this.vt) / MASH_REF;   // ~7 toques por segundo = ritmo de referencia
   }
   update(dt, I) {
     this.t += dt;
     if (this.turn > 0) {                      // dar la vuelta al trineo
       this.turn -= dt; this.av.set('walk', (this.t * 1.6) % 1, {}); this.placeTurn(); if (this.turn <= 0) this.dirn *= -1; return;
     }
-    // cada empujón: toca con la aguja en verde
-    let q = beatStep(this, dt, I);
+    // cada paso: alterna ← → lo más rápido que puedas
+    let q = mashStep(this, dt, I);
     if (q) {
       if (this.v < 0.15) q *= 0.6;                                   // arrancar desde parado cuesta
       this.v += this.imp * q * this.lf * this.ef;
-      this.spend(0.085 * this.lf ** -0.5 * 0.6 * 7 * this.bP * BEAT_PERF);
+      this.spend(0.085 * this.lf ** -0.5 * 0.6 * q * this.mCost);
       this.race.sfx('step');
     }
     this.v = Math.max(0, this.v - (this.c0 + this.c1 * this.v) * dt);
@@ -256,8 +262,8 @@ class Push extends Station {
     const ang = (this.dirn > 0 ? Math.PI : 0) + a;
     place(this.av, _v.set(cx + Math.cos(ang) * r * -1, 0, cz + Math.sin(ang) * 0.55), _w.set(-Math.sin(ang) * -1, 0, Math.cos(ang)).normalize());
   }
-  hud() { return { gauge: beatGauge(this, 'EMPUJA EN VERDE'), big: this.done.toFixed(1) + ' m', sub: `Carril ${Math.min(4, this.laneN + 1)}/4 · ${this.load.push} kg` }; }
-  hints() { return [['ESPACIO', 'empuja con la aguja en verde'], ['', 'si se para, arrancar cuesta']]; }
+  hud() { return { gauge: mashGauge(this, 'VELOCIDAD · ALTERNA ← → RÁPIDO'), big: this.done.toFixed(1) + ' m', sub: `Carril ${Math.min(4, this.laneN + 1)}/4 · ${this.load.push} kg` }; }
+  hints() { return [['← → ← →', 'alterna lo más rápido que puedas'], ['', 'si se para, arrancar cuesta']]; }
   cam() { const sx = this.sledPos(); return { pos: _v.set(sx - this.dirn * 3.5, 2.0, this.L.pos.z + 3.4 * (this.L.pos.z < 0 ? 1 : -1)), look: _w.set(sx, 0.6, this.L.pos.z) }; }
 }
 
@@ -270,7 +276,7 @@ class Pull extends Station {
     this.v = 0; this.x = 0; this.lastKey = null; this.lastT = -1; this.ph = 0; this.side = 0; this.laneN = 0; this.walk = 0;
     this.lf = loadF(this.sex, 'pull', this.load.pull);
     this.vt = 50 / (this.ref * 0.82);
-    this.c1 = 0.9; this.c0 = 0.4 * this.vt; beatInit(this, 0.65); this.imp = (this.c0 + this.c1 * this.vt) * this.bP * BEAT_PERF;   // un jalón perfecto por ciclo = ritmo de referencia
+    this.c1 = 0.9; this.c0 = 0.4 * this.vt; mashInit(this); this.imp = (this.c0 + this.c1 * this.vt) / MASH_REF;   // ~7 jalones por segundo = ritmo de referencia
     this.rope = null;
     this.rope = new (this.race.Cable)(0.017, this.race.MAT.rope, 16, 0.08);
     this.race.world.scene.add(this.rope.mesh);
@@ -289,14 +295,13 @@ class Pull extends Station {
       this.ropeUpdate();
       return;
     }
-    // cada jalón de la cuerda: toca con la aguja en verde
-    let q = beatStep(this, dt, I);
+    // mano sobre mano: alterna ← → lo más rápido que puedas
+    let q = mashStep(this, dt, I);
     if (q) {
       if (this.v < 0.12) q *= 0.6;
       this.v += this.imp * q * this.lf * this.ef;
-      this.spend(0.08 * this.lf ** -0.5 * 0.6 * 7 * this.bP * BEAT_PERF);
-      this.race.sfx('rope');
-      this.ph = (this.ph + 0.5) % 1;
+      this.spend(0.08 * this.lf ** -0.5 * 0.6 * q * this.mCost);
+      this.race.sfx('rope'); this.ph = (this.ph + 0.5) % 1;
     }
     this.v = Math.max(0, this.v - (this.c0 + this.c1 * this.v) * dt);
     if (this.v < 0.02) this.v = 0;
@@ -323,8 +328,8 @@ class Pull extends Station {
     this.rope.set(h, ring, this.v > 0.2 ? 0.06 : 0.25);
   }
   dispose() { this.race.world.scene.remove(this.rope.mesh); }
-  hud() { return { gauge: beatGauge(this, 'JALA EN VERDE'), big: this.done.toFixed(1) + ' m', sub: `Carril ${Math.min(4, this.laneN + 1)}/4 · ${this.load.pull} kg` }; }
-  hints() { return [['ESPACIO', 'jala la cuerda con la aguja en verde']]; }
+  hud() { return { gauge: mashGauge(this, 'TIRÓN · ALTERNA ← → RÁPIDO'), big: this.done.toFixed(1) + ' m', sub: `Carril ${Math.min(4, this.laneN + 1)}/4 · ${this.load.pull} kg` }; }
+  hints() { return [['← → ← →', 'mano sobre mano, lo más rápido que puedas']]; }
   cam() {
     const [ax, bx] = this.ends(), dir = Math.sign(bx - ax), zs = this.L.pos.z < 0 ? 1 : -1;
     if (this.walk > 0) { const x = this.av.group.position.x; return { pos: _v.set(x - 1.5, 2.3, this.L.pos.z + 4.2 * zs), look: _w.set(x, 0.8, this.L.pos.z) }; }
@@ -365,6 +370,7 @@ class BBJ extends Station {
       if (press || this.aim >= 1) {
         const [a, b] = this.zone(), c = (a + b) / 2, hw = (b - a) / 2, d = Math.abs(Math.min(1, this.aim) - c);
         this.jq = press ? (d <= hw ? 1 : Math.max(0.55, 1 - (d - hw) * 1.6)) : 0.55;
+        markHit(this, this.aim, this.jq >= 1 ? 'good' : this.jq >= 0.8 ? 'meh' : 'bad');
         if (!press) this.race.flash('Salto corto: pulsa en verde', 'meh', 0.8);
         else if (this.jq >= 1) this.race.sfx('ui');
         this.stage = 'jump'; this.jump = { from: this.x, t: 0, d: Math.min(this.per * ef * this.jq, this.total - this.x) }; this.xv = this.x;
@@ -388,7 +394,7 @@ class BBJ extends Station {
   }
   hud() {
     const aiming = this.stage === 'aim';
-    return { gauge: gauge('timing', { val: aiming ? Math.min(1, this.aim) : 0, zone: this.zone(), label: aiming ? 'SALTO · ¡ESPACIO EN VERDE!' : 'ESPACIO = BURPEE · luego salta en verde' }), big: this.done.toFixed(0) + ' m', sub: `de 80 m · carril ${Math.min(4, (this.sh?.lap ?? 0) + 1)}/4` };
+    return { gauge: gauge('timing', { ...markOf(this), val: aiming ? Math.min(1, this.aim) : 0, zone: this.zone(), label: aiming ? 'SALTO · ¡ESPACIO EN VERDE!' : 'ESPACIO = BURPEE · luego salta en verde' }), big: this.done.toFixed(0) + ' m', sub: `de 80 m · carril ${Math.min(4, (this.sh?.lap ?? 0) + 1)}/4` };
   }
   hints() { return [['ESPACIO', 'burpee'], ['ESPACIO en verde', 'salto largo (~2 m)']]; }
   cam() { const sh = this.sh || { x: 0, dir: 1 }; const x = this.L.pos.x + sh.x; return { pos: _v.set(x - sh.dir * 2.6, 1.9, this.L.pos.z + 3.6 * (this.L.pos.z < 0 ? 1 : -1)), look: _w.set(x + sh.dir * 1.2, 0.5, this.L.pos.z) }; }
@@ -481,7 +487,8 @@ class Lunges extends Station {
         this.depth = Math.min(1, this.depth + dt / tD);
         if (this.depth >= 1) { this.bottomT += dt; this.spend(0.12 * this.kw * dt / this.lf); }   // quedarse abajo cansa
       } else {
-        const [a] = this.zone();
+        const [a, zb] = this.zone();
+        markHit(this, this.depth, this.depth < a ? 'bad' : this.depth <= zb ? 'good' : 'meh');
         this.st = 'up'; this.timer = 0;
         if (this.depth < a) { this.step = 0; this.slowUp = false; this.noRep('la rodilla no tocó el piso'); }
         else { this.race.sfx('thud', { soft: true }); this.spend((0.18 / this.lf) * this.kw); this.step = Math.min(this.per * ef, this.total - this.x); this.slowUp = this.bottomT > 0.12; }
@@ -510,7 +517,7 @@ class Lunges extends Station {
   }
   hud() {
     const down = this.st === 'down';
-    return { gauge: gauge('depth', { val: down ? this.depth : 0, zone: this.zone(), label: down ? 'RODILLA AL PISO · ¡SUELTA EN VERDE!' : `MANTÉN ${this.nextLeg === 'L' ? '←' : '→'} PARA BAJAR` }), big: this.done.toFixed(0) + ' m', sub: `de 100 m · saco ${this.load.sandbag} kg · carril ${Math.min(5, (this.sh?.lap ?? 0) + 1)}/5` };
+    return { gauge: gauge('depth', { ...markOf(this), val: down ? this.depth : 0, zone: this.zone(), label: down ? 'RODILLA AL PISO · ¡SUELTA EN VERDE!' : `MANTÉN ${this.nextLeg === 'L' ? '←' : '→'} PARA BAJAR` }), big: this.done.toFixed(0) + ' m', sub: `de 100 m · saco ${this.load.sandbag} kg · carril ${Math.min(5, (this.sh?.lap ?? 0) + 1)}/5` };
   }
   // pierna del próximo toque: de pie o bajando, la actual; subiendo, la otra (si la zancada contó)
   get nextLeg() { return this.st === 'up' && this.step > 0 ? (this.leg === 'L' ? 'R' : 'L') : this.leg; }
@@ -551,6 +558,7 @@ class WallBalls extends Station {
       this.ph = Math.min(1, this.squat) * 0.33;
       if (this.fire || this.squat >= 1.1) {
         const [a, b] = this.zone(), x = Math.min(1, this.squat);
+        markHit(this, x, this.fire && x >= a && x <= b ? 'good' : 'bad');
         this.throwQ = this.fire && x >= a && x <= b ? 0.7 : 0.3;          // fuera del verde no llega: no rep
         this.state = 'throw'; this.fly = 0; this.spend(0.142 / this.lf); this.race.sfx('ballThrow');
       }
@@ -592,7 +600,7 @@ class WallBalls extends Station {
   handMid(o) { return this.av.handPos('L', o).add(this.av.handPos('R', _v)).multiplyScalar(0.5); }
   hud() {
     const sq = this.state === 'squat';
-    return { gauge: gauge('timing', { val: sq ? Math.min(1, this.squat) : 0, zone: this.zone(), label: sq ? 'LANZA EN VERDE' : 'ESPACIO = SENTADILLA · luego lanza en verde' }), big: this.done + ' / 100', sub: `${this.load.ball} kg · blanco ${String(this.load.target ?? (this.sex === 'F' ? 2.7 : 3)).replace('.', ',')} m` };
+    return { gauge: gauge('timing', { ...markOf(this), val: sq ? Math.min(1, this.squat) : 0, zone: this.zone(), label: sq ? 'LANZA EN VERDE' : 'ESPACIO = SENTADILLA · luego lanza en verde' }), big: this.done + ' / 100', sub: `${this.load.ball} kg · blanco ${String(this.load.target ?? (this.sex === 'F' ? 2.7 : 3)).replace('.', ',')} m` };
   }
   hints() { return [['ESPACIO', 'sentadilla'], ['ESPACIO en verde', 'lanzas y pega en el blanco']]; }
   cam() { return { pos: _v.set(this.L.pos.x + 2.6, 1.9, this.L.pos.z - 3.4 * this.side), look: _w.set(this.L.pos.x, 1.7, this.L.pos.z + 0.4 * this.side) }; }

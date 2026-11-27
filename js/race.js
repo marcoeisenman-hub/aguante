@@ -127,6 +127,8 @@ export class Race {
     }
     if (o.profile) applyProfile(me.members[0], o.profile);   // tu atleta entrenado
     if (o.profile) me.ovr = overall(o.profile);
+    // nivel de cada compañero: la IA corre a tu nivel; papá, el de su carrera real (Tampa)
+    if (o.profile) me.members.forEach((m, k) => { m.ovr = k === 0 ? me.ovr : m.papa ? ovrFor(fieldDistribution({ format: 'singles', cat: 'M' }), PAPA.total / 60) : me.ovr; });
     {
       const lvl = o.profile ? (overall(o.profile) + (o.profile.stats.vel ?? 50)) / 2 : 50;      // correr: tu nivel y tu velocidad
       const teamSex = div.cat === 'W' ? 'F' : 'M', tot = levelMinutes(odist, lvl) * 60;

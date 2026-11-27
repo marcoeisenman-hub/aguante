@@ -9,11 +9,11 @@ import { Race, GEARS, SEG_NAMES } from './race.js';
 import { division, validDivision, STATIONS, RECORDS, fmt, COUNTRIES, fieldDistribution, PAPA, LOADS, ageGroup as agOf, ageFactor } from './data.js';
 import { Audio } from './audio.js';
 import { Room, newCode } from './online.js';
-import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace, heatRange, trainsLeft, DAILY, drillWait, COOLDOWN_H, ovrFor } from './career.js';
+import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, train, afterRace, heatRange, trainsLeft, DAILY, drillWait, COOLDOWN_H, ovrFor, TIERS, MEDAL, tiredOf } from './career.js';
 import { REF } from './stations.js';
 // Entrenar está apagado por ahora (Marco lo pidió el 2026-11-25); el código queda para volver a prenderlo
 const TRAINING_ON = true;
-const VERSION = '2026-11-26b';   // igual que version.json: si el servidor tiene otra, avisamos para recargar
+const VERSION = '2026-11-26c';   // igual que version.json: si el servidor tiene otra, avisamos para recargar
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -255,9 +255,21 @@ function renderTrain() {
   const left = trainsLeft(P);
   $('#tLeft').innerHTML = (left ? `Entrenos disponibles: <b>${left}</b>` : `<span style="color:var(--meh)">No te quedan entrenos.</span>`) + ' · gana más en carrera: 1.º +3, 2.º +2, 3.º +1';
   for (const b of $$('#tList button')) { const t = TRAININGS.find(t => t.id === b.dataset.t); b.disabled = drillWait(P, t) > 0 || (!left && t.kind !== 'rest'); b.onclick = () => startTraining(t); }
-  $('#tLog').innerHTML = P.log.length ? P.log.map(l => `<div>Día ${l.day} · ${l.tier ? `<b class="tier t${l.tier}">${l.tier}</b> ` : ''}${escapeHtml(l.t)}${l.q != null && !/Descanso/.test(l.t) ? ' · ' + l.q + '%' : ''} <span>${Object.entries(l.up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(', ')}</span></div>`).join('') : '<div>Todavía no entrenaste.</div>';
+  $('#tLog').innerHTML = P.log.length ? P.log.map(l => `<div>Día ${l.day} · ${l.tier ? `<b class="tier t${l.tier}">${MEDAL[l.tier] || l.tier}</b> ` : ''}${escapeHtml(l.t)}${l.q != null && !/Descanso/.test(l.t) ? ' · ' + l.q + '%' : ''} <span>${Object.entries(l.up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(', ')}</span></div>`).join('') : '<div>Todavía no entrenaste.</div>';
 }
 $('#tReset').onclick = () => { if ($('#tReset').dataset.sure) { resetProfile(); delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; renderTrain(); } else { $('#tReset').dataset.sure = 1; $('#tReset').textContent = '¿Seguro? Pulsa otra vez'; setTimeout(() => { delete $('#tReset').dataset.sure; $('#tReset').textContent = 'Empezar de cero'; }, 3000); } };
+// lo que necesitas para cada medalla (con tu fatiga de ahora). fmtNeed(q) convierte la calidad necesaria en texto
+// cuánto es el entreno de estación (p. ej. la mitad: Farmers 100 m)
+function trainGoal() {
+  if (!race || !training || !race.trainPart) return '';
+  const s = STATIONS.find(x => x.id === training.st); if (!s) return '';
+  const n = Math.round(s.dist * race.trainPart * 10) / 10;
+  return `${String(n).replace('.', ',')}${s.unit === 'reps' ? ' reps' : ' m'}`;
+}
+function medalLine(fmtNeed) {
+  const tired = tiredOf(loadProfile());
+  return TIERS.slice(0, 3).map(([id, th, up]) => { const need = th / tired; return `<b class="tier t${id}">${MEDAL[id]}</b> ${need > 1 ? 'muy cansado: no alcanza' : fmtNeed(need)} <i>(+${up} nivel)</i>`; }).join(' · ');
+}
 function startTraining(t) {
   initAudio(); Audio.sfx('ui');
   if (drillWait(loadProfile(), t) > 0) { renderTrain(); return; }
@@ -270,7 +282,7 @@ function startTraining(t) {
 let tap = null;
 function tapGame(t) {
   const box = $('#tapBox'); box.hidden = false;
-  $('#tapName').textContent = t.name; $('#tapTip').textContent = t.tip;
+  $('#tapName').textContent = t.name; $('#tapTip').innerHTML = `${escapeHtml(t.tip)}<div class="medals">${medalLine(q => Math.round(q * 100) + ' % de aciertos')}</div>`;
   const zw = t.slow ? 0.26 : 0.18;
   tap = { t, rep: 0, hits: [], x: 0, dir: 1, speed: t.slow ? 0.55 : 0.95, zone: 0, zw, done: false, last: performance.now(), cool: 0 };
   newZone(); requestAnimationFrame(tapLoop); drawTap();
@@ -300,7 +312,7 @@ function tapHit() {
     tap.done = true;
     const q = tap.hits.reduce((a, b) => a + b, 0) / tap.t.reps;
     const P = loadProfile(); const up = train(P, tap.t, q);
-    $('#tapTip').innerHTML = P.noQuota ? 'Este entreno ya no estaba disponible: no cuenta.' : `<b class="tier t${P.lastTier}">${P.lastTier}</b> Calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && Math.round(P.lastEq * 100) < Math.round(q * 100) ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
+    $('#tapTip').innerHTML = P.noQuota ? 'Este entreno ya no estaba disponible: no cuenta.' : `<b class="tier t${P.lastTier}">${MEDAL[P.lastTier] || P.lastTier}</b> Calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && Math.round(P.lastEq * 100) < Math.round(q * 100) ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b> · ${Object.entries(up).map(([k, v]) => STATS.find(x => x.id === k).name + ' +' + v).join(' · ')}`;
     const cur = tap;
     setTimeout(() => { if (tap === cur) { $('#tapBox').hidden = true; tap = null; } renderTrain(); }, 1800);
   }
@@ -449,12 +461,12 @@ function quitToMenu() {
 }
 
 // si recargas la página en plena carrera, puedes seguir desde el tramo en que ibas
-function savedRace() { const r = store.get('hrResume', null); return r && r.v === 1 && Date.now() - r.at < 6 * 3600e3 && r.S ? r : null; }
+function savedRace() { const r = store.get('hrResume', null); return r && r.v === 1 && Date.now() - r.at < 7 * 24 * 3600e3 && r.S ? r : null; }   // se guarda 7 días
 function renderResume() {
   const r = savedRace(), b = $('#hResume'); b.hidden = !r; if (!r) return;
   const i = r.seg >> 1; b.textContent = `Continuar mi carrera · ${r.kind === 'run' ? 'Run ' + (i + 1) : STATIONS[i].name} · ${fmt(r.clock)}`;
 }
-$('#hResume').onclick = () => { const r = savedRace(); if (!r) return renderResume(); initAudio(); Object.assign(S, r.S); store.set('aguanteSetup', S); startRace(null, null, null, r); };
+$('#hResume').onclick = () => { const r = savedRace(); if (!r) { const b = $('#hResume'); b.disabled = true; b.textContent = 'Esa carrera ya venció (más de 7 días)'; setTimeout(() => { b.disabled = false; b.textContent = 'Continuar mi carrera'; renderResume(); }, 3000); return; } initAudio(); Object.assign(S, r.S); store.set('aguanteSetup', S); startRace(null, null, null, r); };
 renderResume();
 
 // ¿hay una versión nueva publicada? (si dejaste la pestaña abierta, seguías con la vieja)
@@ -520,7 +532,7 @@ function hudUpdate(dt) {
   $('#hHR').textContent = Math.round(m.hr);
   $('#hWho').textContent = race.div.format === 'relay' ? `${m.name} · atleta ${me.active + 1}/4` : race.div.format === 'doubles' ? (me.phase === 'station' ? (me.worker === 0 ? `${me.members[0].name} trabajando` : `${me.members[1].name} trabajando · E para cambiar`) : `${me.members[0].name} + ${me.members[1].name}`) : m.name;
   if (race.div.format === 'doubles') {
-    const mt = me.members[1]; $('#hMate').style.width = mt.energy + '%'; $('#hMateName').textContent = mt.name.split(' ')[0].toUpperCase();
+    const mt = me.members[1]; $('#hMate').style.width = mt.energy + '%'; $('#hMateName').innerHTML = escapeHtml(mt.name.split(' ')[0].toUpperCase()) + (mt.ovr ? ` <i class="ovr">${ovrTxt(mt.ovr)}</i>` : '');
     $('#hGap').textContent = me.phase === 'run' && me.gapSec > 1 ? `${me.gapSec.toFixed(0)} s` : Math.round(mt.energy);
     $('#hGap').style.color = me.gapSec > 7 ? 'var(--bad)' : '';
   }
@@ -535,7 +547,7 @@ function hudUpdate(dt) {
     keys.innerHTML = inHint || `<span><kbd>↑↓</kbd>ritmo</span><span><kbd>←→</kbd>carril ${(me.laneR ?? 0) + 1}/4</span>` + (me.paceKm <= 240 && me.lat > -0.5 ? '<span style="color:var(--meh)">Ritmo ≤ 4:00/km: usa el Fast Lane (izquierda)</span>' : '');
   } else if (me.phase === 'station' && me.ctl) {
     const h = me.ctl.hud();
-    big.textContent = h.big || ''; sub.textContent = h.sub || '';
+    big.textContent = h.big || ''; sub.textContent = trainGoal() ? `ENTRENO: ${trainGoal()} · ${(h.sub || '').replace(/^de [\d.,]+ m · /, '')}` : h.sub || '';
     gEl.innerHTML = drawGauge(h.gauge);
     keys.innerHTML = me.ctl.hints().map(([k, t]) => `<span>${k ? `<kbd>${k}</kbd>` : ''}${t}</span>`).join('') + (race.div.format === 'doubles' ? '<span><kbd>E</kbd>cambio</span>' : '');
   } else if (me.phase === 'roxIn' || me.phase === 'roxOut' || me.phase === 'toFinish') {
@@ -583,16 +595,19 @@ function showCard() {
     row: ['1.000 m', 'damper 6'], farmers: ['2 × ' + l.farmers + ' kg', '200 m'], lunges: [l.sandbag + ' kg', '100 m', 'rodilla al piso'], wb: ['100 reps', l.ball + ' kg', 'blanco ' + (l.target ?? (sex === 'F' ? 2.7 : 3)).toFixed(2).replace('.', ',') + ' m'],
   }[st.id];
   const how = {
-    ski: 'La aguja sube: toca ESPACIO cuando está en verde = jalón completo. Antes o después rinde menos; si la dejas pasar, pierdes el jalón. Aplastar no cuenta. ↑ ↓ cambia el damper.',
-    push: 'Cada empujón: toca ESPACIO con la aguja en verde. Aplastar no cuenta. No dejes que se pare: arrancarlo de nuevo cuesta.',
-    pull: 'Cada jalón de la cuerda: toca ESPACIO con la aguja en verde. Aplastar no cuenta. Al pasar los 12,5 m corres al otro lado.',
+    ski: 'Alterna ← → lo más rápido que puedas (la misma tecla dos veces no cuenta). Muy rápido te quemas: la energía baja fuerte. ↑ ↓ cambia el damper.',
+    push: 'Alterna ← → lo más rápido que puedas. Muy rápido te quemas. No dejes que se pare: arrancarlo de nuevo cuesta.',
+    pull: 'Mano sobre mano: alterna ← → lo más rápido que puedas. Muy rápido te quemas. Al pasar los 12,5 m corres al otro lado.',
     bbj: 'ESPACIO = burpee. Al subir, ESPACIO otra vez con la aguja en verde = salto largo (~2 m). 80 m = 4 carriles de 20 m.',
-    row: 'La aguja sube: toca ESPACIO cuando está en verde = palada completa. Antes o después rinde menos; si la dejas pasar, la pierdes. ↑ ↓ cambia el damper.',
+    row: 'Alterna ← → lo más rápido que puedas (la misma tecla dos veces no cuenta). Muy rápido te quemas. ↑ ↓ cambia el damper.',
     farmers: 'Mantén → para caminar. Si el agarre se acaba se caen: suéltalas antes con ESPACIO. 200 m = 10 carriles de 20 m.',
     lunges: 'Mantén ← para bajar y suelta en verde (rodilla al piso); luego → con la otra pierna. Soltar antes = no rep. 100 m = 5 carriles de 20 m.',
     wb: 'ESPACIO = bajas a la sentadilla y sube la aguja de fuerza. ESPACIO otra vez en verde = la pelota pega en el blanco. Fuera del verde: no rep.',
   }[st.id];
-  $('#hCard').innerHTML = `<div class="n">ESTACIÓN ${idx + 1} DE 8</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${how}</p>`;
+  let medals = '';
+  if (training) spec.splice(0, spec.length, ...spec.filter(x => !/^[\d.,]+ (m|reps)$|^\d+ × [\d,]+ m$/.test(x)), 'entreno: ' + trainGoal());   // el entreno es más corto que la estación
+  if (race.practice && training) { const exp = REF[race.active.sex][training.st] * training.part; medals = `<div class="medals">${medalLine(q => 'en ' + fmt(exp * 1.2 / q) + ' o menos')}</div>`; }
+  $('#hCard').innerHTML = `<div class="n">${training ? 'ENTRENAMIENTO' : `ESTACIÓN ${idx + 1} DE 8`}</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${training ? how.replace(/ [\d.,]+ (m|reps) = [^.]*\./, '') : how}</p>${medals}`;
   $('#hCard').classList.add('show'); cardT = race.practice ? 5 : 6; cardShown = true;
 }
 function drawGauge(g) {
@@ -602,7 +617,10 @@ function drawGauge(g) {
   const fill = g.kind === 'grip' || g.kind === 'speed' || g.kind === 'depth' || g.kind === 'charge' ? `<div class="g-fill" style="width:${clamp(g.val, 0, 1) * 100}%;background:${g.kind === 'grip' ? (g.val > 0.35 ? 'var(--good)' : g.val > 0.15 ? 'var(--meh)' : 'var(--bad)') : 'rgba(255,255,255,.85)'}"></div>` : '';
   const needle = g.kind === 'timing' || g.kind === 'power' ? `<div class="g-needle" style="left:${clamp(g.val, 0, 1) * 100}%"></div>` : '';
   const rec = g.rec != null ? `<div class="g-fill" style="width:${clamp(g.rec, 0, 1) * 100}%;background:rgba(255,255,255,.25)"></div>` : '';
-  return `<div class="g-label">${g.label || ''}</div><div class="g-bar">${rec}${zone}${fill}</div>${needle}`;
+  const txt = { good: 'VERDE', meh: 'CASI', bad: 'ROJO' };
+  const mark = g.mark != null ? `<div class="g-mark ${g.markQ}" style="left:${clamp(g.mark, 0, 1) * 100}%"><span>${txt[g.markQ] || ''}</span></div>` : '';
+  const streak = g.streak >= 2 ? `<div class="g-streak">RACHA x${g.streak}${g.streak >= 3 ? ' · +ENERGÍA' : ''}</div>` : '';
+  return `<div class="g-label">${g.label || ''}</div>${streak}<div class="g-bar${g.zone ? ' zoned' : ''}">${rec}${zone}${fill}</div>${needle}${mark}`;
 }
 
 // ---------------- Resultados ----------------
@@ -623,7 +641,7 @@ function showResults() {
     const P = loadProfile(); const up = train(P, t, q);
     $('#rDiv').textContent = 'ENTRENAMIENTO · DÍA ' + P.day;
     $('#rTime').textContent = fmt(got);
-    $('#rPos').innerHTML = `${escapeHtml(t.name)} · <b class="tier t${P.lastTier}">${P.lastTier}</b> calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && Math.round(P.lastEq * 100) < Math.round(q * 100) ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · te quedan ${trainsLeft(P)} entrenos · fatiga ${Math.round(P.fatigue)}%`;
+    $('#rPos').innerHTML = `${escapeHtml(t.name)} · <b class="tier t${P.lastTier}">${MEDAL[P.lastTier] || P.lastTier}</b> calidad <b>${Math.round(q * 100)}%</b>${P.lastEq != null && Math.round(P.lastEq * 100) < Math.round(q * 100) ? ` (con tu fatiga: ${Math.round(P.lastEq * 100)}%)` : ''} · ${P.noQuota ? 'este entreno ya no estaba disponible: no cuenta' : `nivel <b>${P.lastOvr[0]} → ${P.lastOvr[1]}</b>`} · te quedan ${trainsLeft(P)} entrenos · fatiga ${Math.round(P.fatigue)}%`;
     $('#rBadges').innerHTML = Object.entries(up).map(([k, v]) => `<span class="acc">${STATS.find(x => x.id === k).name} +${v}</span>`).join('');
     $('#rSplits').innerHTML = ''; $('#rHeat').innerHTML = '';
     $('#rPens').textContent = me.pens.length ? me.pens.map(p => `+${fmt(p.sec)} ${p.why}`).join(' · ') : 'Ninguna';
@@ -658,7 +676,7 @@ function showResults() {
   if (race.usedProfile) badges.push([(prize ? `+${prize} entreno${prize > 1 ? 's' : ''}` : 'Sin entrenos (podio = entrenos)') + (race.prizePos ? ` · ${race.prizePos}.º con tiempo oficial` : ''), prize ? 'acc' : '']);
   const rec = store.get('aguanteRecords', {});
   const prev = rec[d.name];
-  if (!prev || me.total < prev.best) badges.push(['¡Mejor marca!', 'acc']);
+  if (!prev) badges.push([`Primera marca en ${d.name}`, '']); else if (me.total < prev.best) badges.push([`¡Mejor marca! −${fmt(prev.best - me.total)}`, 'acc']);
   rec[d.name] = { best: Math.min(prev?.best ?? Infinity, me.total), date: new Date().toLocaleDateString('es'), runs: (prev?.runs || 0) + 1 };
   store.set('aguanteRecords', rec);
   if (race.ghost) { const df = me.total - PAPA.total; badges.push([`vs Papá ${df < 0 ? '−' : '+'}${fmt(Math.abs(df))}`, df < 0 ? 'acc' : '']); }
