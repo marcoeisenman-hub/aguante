@@ -478,7 +478,7 @@ renderResume();
 function renderCuenta() {
   const u = cuenta.user;
   $('#cOut').hidden = !!u; $('#cIn2').hidden = !u; $('#cMsg').textContent = '';
-  if (u) $('#cName').textContent = u.usuario;
+  if (u) $('#cName').textContent = u.usuario + (u.offline ? ' (sin internet: se guarda cuando vuelva)' : '');
   $('#hCuenta').textContent = u ? `Mi cuenta · ${u.usuario}` : 'Mi cuenta · guardar mi progreso';
 }
 async function cuentaDo(fn, reload) {
@@ -493,7 +493,7 @@ async function cuentaDo(fn, reload) {
 }
 $('#cNew').onclick = () => cuentaDo(registro, false);
 $('#cIn').onclick = () => cuentaDo(entrar, true);     // recarga para usar el progreso de la cuenta
-$('#cOutBtn').onclick = async () => { $('#cOutBtn').disabled = true; await salir(); location.reload(); };
+$('#cOutBtn').onclick = async () => { $('#cOutBtn').disabled = true; try { await salir(); location.reload(); } catch (e) { $('#cMsg').style.color = 'var(--bad)'; $('#cMsg').textContent = e.message; $('#cOutBtn').disabled = false; } };
 $('#cPin').addEventListener('keydown', e => { if (e.key === 'Enter') $('#cIn').click(); e.stopPropagation(); });
 $('#cUser').addEventListener('keydown', e => e.stopPropagation());
 renderCuenta();

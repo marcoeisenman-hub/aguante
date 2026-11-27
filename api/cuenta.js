@@ -22,12 +22,12 @@ async function startSession(res, userId) {
 }
 async function current(req) {
   const t = readCookie(req); if (!t) return null;
-  const r = await db()`select u.id, u.usuario, u.data, u.updated_at from hr_sessions s join hr_users u on u.id = s.user_id
+  const r = await db()`select u.id, u.usuario, u.data, u.updated_at, u.rev from hr_sessions s join hr_users u on u.id = s.user_id
                        where s.token_hash = ${sha256(t)} and s.expires_at > now()`;
   return r[0] || null;
 }
 function body(req) { if (req.body && typeof req.body === 'object') return req.body; try { return JSON.parse(req.body || '{}'); } catch { return {}; } }
-const pub = u => ({ usuario: u.usuario, data: u.data || null, updated: u.updated_at ? new Date(u.updated_at).getTime() : 0 });
+const pub = u => ({ usuario: u.usuario, data: u.data || null, rev: Number(u.rev || 0) });
 
 // el progreso: un objeto con las partes guardadas del juego (atleta, personaje, tiempos…), con tamaño máximo
 function cleanData(d) {
@@ -49,9 +49,13 @@ export default async function handler(req, res) {
     }
     if (accion === 'guardar') {
       const u = await current(req); if (!u) return res.status(401).json({ error: 'Entra a tu cuenta' });
-      const d = cleanData(b.data); if (!d) return res.status(400).json({ error: 'Progreso inválido' });
-      const r = await db()`update hr_users set data = ${d}::jsonb, updated_at = now() where id = ${u.id} returning updated_at`;
-      return res.json({ ok: true, updated: new Date(r[0].updated_at).getTime() });
+      const d = cleanData(b.data); if (!d) return res.status(400).json({ error: 'Progreso inválido o muy grande' });
+      const rev = Math.floor(Number(b.rev) || 0);
+      // solo guarda si es más nuevo que lo que hay (rev = cuándo cambiaste algo): un guardado viejo que llega tarde no pisa uno nuevo
+      const r = await db()`update hr_users set data = ${d}::jsonb, rev = ${rev}, updated_at = now() where id = ${u.id} and rev < ${rev} returning rev`;
+      if (r.length) return res.json({ ok: true, rev });
+      const cur = await db()`select data, rev from hr_users where id = ${u.id}`;
+      return res.json({ ok: false, stale: true, rev: Number(cur[0].rev), data: cur[0].data });
     }
 
     const usuario = String(b.usuario || '').trim().toLowerCase(), pin = String(b.pin || '');
@@ -59,21 +63,29 @@ export default async function handler(req, res) {
     if (!/^\d{4,6}$/.test(pin)) return res.status(400).json({ error: 'El PIN: 4 a 6 números' });
 
     if (accion === 'registro') {
-      const d = cleanData(b.data);
-      const r = await db()`insert into hr_users (usuario, pin_hash, data) values (${usuario}, ${await hashPin(pin)}, ${d}::jsonb)
-                           on conflict (usuario) do nothing returning id, usuario, data, updated_at`;
+      const d = b.data == null ? null : cleanData(b.data);
+      if (b.data != null && !d) return res.status(400).json({ error: 'Tu progreso es muy grande para guardarlo' });
+      const rev = Math.floor(Number(b.rev) || 0);
+      const r = await db()`insert into hr_users (usuario, pin_hash, data, rev) values (${usuario}, ${await hashPin(pin)}, ${d}::jsonb, ${rev})
+                           on conflict (usuario) do nothing returning id, usuario, data, rev`;
       if (!r.length) return res.status(409).json({ error: 'Ese usuario ya existe' });
       await startSession(res, r[0].id);
       return res.json({ user: pub(r[0]) });
     }
     if (accion === 'entrar') {
-      const r = await db()`select id, usuario, pin_hash, data, updated_at, fails, locked_until from hr_users where usuario = ${usuario}`;
+      // se "gasta" el intento ANTES de revisar el PIN (en una sola operación): así varios intentos a la vez no se saltan el límite
+      const r = await db()`update hr_users set
+          fails = case when locked_until is not null and locked_until <= now() then 1 else fails + 1 end,
+          locked_until = case when (case when locked_until is not null and locked_until <= now() then 1 else fails + 1 end) >= ${MAX_FAILS}
+                              then now() + make_interval(mins => ${LOCK_MIN}) else null end
+        where usuario = ${usuario} and (locked_until is null or locked_until <= now())
+        returning id, usuario, pin_hash, data, rev`;
       const u = r[0];
-      if (u && u.locked_until && new Date(u.locked_until) > new Date()) return res.status(429).json({ error: `Muchos intentos. Prueba en ${LOCK_MIN} minutos.` });
-      if (!u || !(await checkPin(pin, u.pin_hash))) {
-        if (u) await db()`update hr_users set fails = fails + 1, locked_until = case when fails + 1 >= ${MAX_FAILS} then now() + make_interval(mins => ${LOCK_MIN}) else locked_until end where id = ${u.id}`;
-        return res.status(401).json({ error: 'Usuario o PIN incorrectos' });
+      if (!u) {
+        const ex = await db()`select 1 from hr_users where usuario = ${usuario}`;
+        return ex.length ? res.status(429).json({ error: `Muchos intentos. Prueba en ${LOCK_MIN} minutos.` }) : res.status(401).json({ error: 'Usuario o PIN incorrectos' });
       }
+      if (!(await checkPin(pin, u.pin_hash))) return res.status(401).json({ error: 'Usuario o PIN incorrectos' });
       await db()`update hr_users set fails = 0, locked_until = null where id = ${u.id}`;
       await startSession(res, u.id);
       return res.json({ user: pub(u) });
