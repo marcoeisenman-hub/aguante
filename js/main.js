@@ -268,8 +268,9 @@ function trainGoal() {
 }
 function medalLine(fmtNeed) {
   const P = loadProfile(), tired = tiredOf(P), half = overall(P) >= 85 ? 0.5 : 1;
-  // el juego redondea la nota al %: alcanza con (umbral − 0,5 %) / fatiga
-  return TIERS.slice(0, 3).map(([id, th, up]) => { const need = (th - 0.005) / tired; return `<b class="tier t${id}">${MEDAL[id]}</b> ${need > 1 ? 'muy cansado: no alcanza' : fmtNeed(Math.min(1, need))} <i>(+${up * half} nivel)</i>`; }).join(' · ');
+  // el menor % entero que da la medalla, con el mismo redondeo que train()
+  const minPct = th => { for (let p = 0; p <= 100; p++) if (Math.round(p / 100 * tired * 100) / 100 >= th) return p; return null; };
+  return TIERS.slice(0, 3).map(([id, th, up]) => { const p = minPct(th); return `<b class="tier t${id}">${MEDAL[id]}</b> ${p == null ? 'muy cansado: no alcanza' : fmtNeed(p)} <i>(+${up * half} nivel)</i>`; }).join(' · ');
 }
 function startTraining(t) {
   initAudio(); Audio.sfx('ui');
@@ -283,7 +284,7 @@ function startTraining(t) {
 let tap = null;
 function tapGame(t) {
   const box = $('#tapBox'); box.hidden = false;
-  $('#tapName').textContent = t.name; $('#tapTip').innerHTML = `${escapeHtml(t.tip)}<div class="medals">${medalLine(q => Math.round(q * 100) + ' % de aciertos')}</div>`;
+  $('#tapName').textContent = t.name; $('#tapTip').innerHTML = `${escapeHtml(t.tip)}<div class="medals">${medalLine(p => p + ' % de aciertos')}</div>`;
   const zw = t.slow ? 0.26 : 0.18;
   tap = { t, rep: 0, hits: [], x: 0, dir: 1, speed: t.slow ? 0.55 : 0.95, zone: 0, zw, done: false, last: performance.now(), cool: 0 };
   newZone(); requestAnimationFrame(tapLoop); drawTap();
@@ -607,7 +608,7 @@ function showCard() {
   }[st.id];
   let medals = '';
   if (training) spec.splice(0, spec.length, ...spec.filter(x => !/^[\d.,]+ (m|reps)$|^\d+ × [\d,]+ m$/.test(x)), 'entreno: ' + trainGoal());   // el entreno es más corto que la estación
-  if (race.practice && training) { const exp = REF[race.active.sex][training.st] * training.part; medals = `<div class="medals">${medalLine(q => 'en ' + fmt(exp * 1.2 / q) + ' o menos')}<br><i>sin penalizaciones (cada no rep o falta te baja 10 %)</i></div>`; }
+  if (race.practice && training) { const exp = REF[race.active.sex][training.st] * training.part; medals = `<div class="medals">${medalLine(p => 'en ' + fmt(exp * 1.2 / (Math.max(1, p - 0.5) / 100)) + ' o menos')}<br><i>sin penalizaciones (cada penalización te baja 10 %)</i></div>`; }
   $('#hCard').innerHTML = `<div class="n">${training ? 'ENTRENAMIENTO' : `ESTACIÓN ${idx + 1} DE 8`}</div><h3>${st.name}</h3><div class="spec">${spec.map(s => `<span>${s}</span>`).join('')}</div><p>${training ? how.replace(/ [\d.,]+ (m|reps) = [^.]*\./, '') : how}</p>${medals}`;
   $('#hCard').classList.add('show'); cardT = race.practice ? 5 : 6; cardShown = true;
 }

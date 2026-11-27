@@ -86,8 +86,8 @@ function mashStep(st, dt, I) {
   // si llegan las dos flechas en el mismo cuadro, primero la que toca (la que no fue la última)
   for (const k of st.mLast === 'L' ? ['R', 'L'] : ['L', 'R']) if (I.pressed(k)) {
     if (k === st.mLast) { if (!n && (!st._wf || st.t - st._wf > 0.8)) { st._wf = st.t; st.race.flash('¡Alterna ← →!', 'meh', 0.6); } continue; }
-    const gap = n ? 0.1 : st.mT < 0 ? 0.15 : Math.max(0.02, st.t - st.mT);
-    if (!n) st.rate = st.mT < 0 ? 5 : lerp(st.rate, 1 / gap, 0.3);
+    const gap = n ? 0.05 : st.mT < 0 ? 0.15 : Math.max(0.02, st.t - st.mT);   // dos a la vez = toque corto (y cuenta como ritmo muy rápido)
+    st.rate = st.mT < 0 && !n ? 5 : lerp(st.rate, 1 / gap, 0.3);
     st.mLast = k; st.mT = st.t; n++;
     q = (q || 0) + (gap < 0.1 ? 0.55 : 1);                 // más de 10 por segundo: toques cortos que casi no empujan
   }
