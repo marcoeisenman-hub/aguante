@@ -9,9 +9,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
     "playwright-core": "1.60",
     "three": "^0.187.0"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.1"
   }
 }

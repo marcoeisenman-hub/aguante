@@ -13,11 +13,13 @@ import { STATS, TRAININGS, loadProfile, saveProfile, resetProfile, overall, trai
 import { REF } from './stations.js';
 // Entrenar está apagado por ahora (Marco lo pidió el 2026-11-25); el código queda para volver a prenderlo
 const TRAINING_ON = true;
-const VERSION = '2026-11-26c';   // igual que version.json: si el servidor tiene otra, avisamos para recargar
+const VERSION = '2026-11-26d';   // igual que version.json: si el servidor tiene otra, avisamos para recargar
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+import { cuenta, cuentaInit, registro, entrar, salir } from './cuenta.js';
+await cuentaInit();   // si tienes sesión, trae tu progreso antes de leer nada (máx. ~3,5 s sin internet)
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } } };
 
 // ---------------- Entrada ----------------
@@ -84,7 +86,7 @@ const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3();
 
 // ---------------- Estado ----------------
 let state = 'loading', race = null, demo = null, lastSetup = null;
-const S = store.get('aguanteSetup', { format: 'singles', cat: 'M', level: 'open', heat: 'comp', partner: 'ai', name: '', country: 'PAN', age: 16, kit: 0, ghost: true });
+const S = { format: 'singles', cat: 'M', level: 'open', heat: 'comp', partner: 'ai', name: '', country: 'PAN', age: 16, kit: 0, ghost: true, ...store.get('aguanteSetup', {}) };   // lo que falte, por defecto
 let K = +store.get('aguanteK', 5);
 
 async function boot() {
@@ -119,6 +121,7 @@ function show(id) {
   $$('.screen').forEach(s => s.classList.toggle('show', s.id === id));
   if (id === 'setup') renderSetup();
   if (id === 'records') renderRecords();
+  if (id === 'cuenta') renderCuenta();
   if (id === 'practice') renderPractice();
   if (id === 'train') renderTrain();
   clearInterval(trainTick); if (id === 'train') trainTick = setInterval(() => { if (!$('#train').classList.contains('show')) return; const f = document.activeElement?.dataset?.t; renderTrain(); if (f) $(`#tList [data-t=${f}]`)?.focus(); }, 30e3);   // esperas y cupo al día
@@ -470,6 +473,30 @@ function renderResume() {
 }
 $('#hResume').onclick = () => { const r = savedRace(); if (!r) { const b = $('#hResume'); b.disabled = true; b.textContent = 'Esa carrera ya venció (más de 7 días)'; setTimeout(() => { b.disabled = false; b.textContent = 'Continuar mi carrera'; renderResume(); }, 3000); return; } initAudio(); Object.assign(S, r.S); store.set('aguanteSetup', S); startRace(null, null, null, r); };
 renderResume();
+
+// ---------------- Cuenta ----------------
+function renderCuenta() {
+  const u = cuenta.user;
+  $('#cOut').hidden = !!u; $('#cIn2').hidden = !u; $('#cMsg').textContent = '';
+  if (u) $('#cName').textContent = u.usuario;
+  $('#hCuenta').textContent = u ? `Mi cuenta · ${u.usuario}` : 'Mi cuenta · guardar mi progreso';
+}
+async function cuentaDo(fn, reload) {
+  const usuario = $('#cUser').value.trim(), pin = $('#cPin').value.trim();
+  $('#cMsg').style.color = 'var(--bad)';
+  if (!/^[a-zA-Z0-9_.]{3,16}$/.test(usuario)) { $('#cMsg').textContent = 'El usuario: 3 a 16 letras, números, _ o .'; return; }
+  if (!/^\d{4,6}$/.test(pin)) { $('#cMsg').textContent = 'El PIN: 4 a 6 números'; return; }
+  $('#cNew').disabled = $('#cIn').disabled = true; $('#cMsg').style.color = ''; $('#cMsg').textContent = 'Conectando…';
+  try { await fn(usuario, pin); $('#cPin').value = ''; if (reload) { location.reload(); return; } renderCuenta(); $('#cMsg').style.color = 'var(--good)'; $('#cMsg').textContent = '¡Listo! Tu progreso ya está en tu cuenta.'; }
+  catch (e) { $('#cMsg').style.color = 'var(--bad)'; $('#cMsg').textContent = e.message || 'No se pudo conectar'; }
+  finally { $('#cNew').disabled = $('#cIn').disabled = false; }
+}
+$('#cNew').onclick = () => cuentaDo(registro, false);
+$('#cIn').onclick = () => cuentaDo(entrar, true);     // recarga para usar el progreso de la cuenta
+$('#cOutBtn').onclick = async () => { $('#cOutBtn').disabled = true; await salir(); location.reload(); };
+$('#cPin').addEventListener('keydown', e => { if (e.key === 'Enter') $('#cIn').click(); e.stopPropagation(); });
+$('#cUser').addEventListener('keydown', e => e.stopPropagation());
+renderCuenta();
 
 // ¿hay una versión nueva publicada? (si dejaste la pestaña abierta, seguías con la vieja)
 async function checkVersion() {

@@ -37,6 +37,7 @@
       <button class="btn" data-go="practice">Practicar una estación</button>
       <button class="btn" data-go="howto">Cómo se juega</button>
       <button class="btn" data-go="records">Mis tiempos</button>
+      <button class="btn" data-go="cuenta" id="hCuenta">Mi cuenta · guardar mi progreso</button>
     </div>
     <div class="opts">
       <label><input type="checkbox" id="optSound" checked> Sonido</label>
@@ -194,6 +195,25 @@
 </div>
 
 <!-- Récords -->
+<div id="cuenta" class="screen">
+  <div class="panel scroll">
+    <div class="phead"><button class="back" data-go="home">←</button><h2>Mi cuenta</h2></div>
+    <div id="cOut">
+      <p class="note">Crea tu cuenta con un <b>usuario</b> y un <b>PIN</b> (4 a 6 números). Tu atleta, tu personaje, tus tiempos y tus entrenos se guardan solos y los tienes en cualquier compu. No pide correo ni datos tuyos.</p>
+      <div class="erow"><label>Usuario <input id="cUser" maxlength="16" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="ej. marco_9"></label></div>
+      <div class="erow"><label>PIN <input id="cPin" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="••••"></label></div>
+      <div class="menu"><button class="btn primary" id="cNew">Crear cuenta (con mi progreso de ahora)</button><button class="btn" id="cIn">Entrar a mi cuenta</button></div>
+      <p class="note">Si entras a una cuenta que ya existe, se carga el progreso de esa cuenta.</p>
+    </div>
+    <div id="cIn2" hidden>
+      <p>Conectado como <b id="cName"></b>. Tu progreso se guarda solo en la nube.</p>
+      <div class="menu"><button class="btn" id="cOutBtn">Salir de la cuenta</button></div>
+      <p class="note">Al salir, este compu queda en blanco; tu progreso sigue en tu cuenta.</p>
+    </div>
+    <p id="cMsg" class="note" style="color:var(--bad)"></p>
+  </div>
+</div>
+
 <div id="records" class="screen">
   <div class="panel wide scroll">
     <div class="phead"><button class="back" data-go="home">←</button><h2>Mis tiempos</h2></div>
