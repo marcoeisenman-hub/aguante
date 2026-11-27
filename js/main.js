@@ -498,7 +498,7 @@ $('#cOutBtn').onclick = async () => { $('#cOutBtn').disabled = true; try { await
 $('#cPin').addEventListener('keydown', e => { if (e.key === 'Enter') $('#cIn').click(); e.stopPropagation(); });
 $('#cUser').addEventListener('keydown', e => e.stopPropagation());
 renderCuenta();
-cuenta.onRemote = () => { if (state === 'menu') location.reload(); };   // tu progreso cambió en otro compu
+cuenta.canApply = () => state === 'menu'; cuenta.onRemote = () => location.reload();   // tu progreso cambió en otro compu
 
 // ¿hay una versión nueva publicada? (si dejaste la pestaña abierta, seguías con la vieja)
 async function checkVersion() {

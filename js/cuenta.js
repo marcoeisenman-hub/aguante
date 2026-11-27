@@ -13,12 +13,12 @@ const get = k => { try { return LS.getItem(k); } catch { return null; } };
 const put = (k, v) => { try { origSet.call(LS, k, v); } catch { } };
 const del = k => { try { origRemove.call(LS, k); } catch { } };
 const num = k => Number(get(k) || 0);
-const META = ['hrSyncUser', 'hrSeq', 'hrSent', 'hrBase'];
+const META = ['hrSyncUser', 'hrSent', 'hrBase'];   // hrSeq nunca se borra: así los números de este compu siempre suben
 // identificador de este compu (al azar, no dice nada de ti): para que el servidor ordene sus guardados
 const DEV = get('hrDev') || (() => { const d = Math.random().toString(36).slice(2) + Date.now().toString(36); put('hrDev', d); return d; })();
 
 let user = null, timer = null, busy = null, lastError = '';
-export const cuenta = { get user() { return user; }, get error() { return lastError; }, onRemote: null };   // onRemote: la nube cambió y hay que recargar
+export const cuenta = { get user() { return user; }, get error() { return lastError; }, onRemote: null, canApply: () => true };   // canApply: ¿se puede cambiar el progreso ahora? (no a media carrera)   // onRemote: la nube cambió y hay que recargar
 
 function snapshot() {
   const d = {};
@@ -79,7 +79,10 @@ async function reconnect() {
     if (!j.user || j.user.usuario !== user.usuario) { user = null; return false; }
     user = j.user;
     // sin cambios aquí y la nube cambió (otro compu): bajar lo de la nube y recargar
-    if (!dirty() && user.rev !== num('hrBase')) { apply(user.data, user.rev); cuenta.onRemote?.(); return false; }
+    if (!dirty() && user.rev !== num('hrBase')) {
+      if (!cuenta.canApply()) return false;               // a media carrera: lo hace cuando vuelvas al menú
+      apply(user.data, user.rev); cuenta.onRemote?.(); return false;
+    }
     return true;
   } catch { return false; }
 }

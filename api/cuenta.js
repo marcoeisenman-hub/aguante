@@ -53,8 +53,11 @@ export default async function handler(req, res) {
       // el servidor numera cada guardado (no depende del reloj del compu).
       // dev/seq: un guardado viejo del mismo compu que llega tarde (p. ej. tras un corte) no pisa uno más nuevo
       const dev = String(b.dev || '').slice(0, 40), seq = Math.max(0, Math.min(Number.MAX_SAFE_INTEGER, Math.floor(Number(b.seq) || 0)));
-      const r = await db()`update hr_users set data = ${d}::jsonb, rev = rev + 1, dev = ${dev}, dseq = ${seq}, updated_at = now()
-                           where id = ${u.id} and not (dev is not distinct from ${dev} and dseq >= ${seq} and ${seq} > 0) returning rev`;
+      // se recuerda el último número de cada compu de la cuenta; todo en una sola operación
+      const r = await db()`with s as (
+          insert into hr_devseq (user_id, dev, seq) values (${u.id}, ${dev}, ${seq})
+          on conflict (user_id, dev) do update set seq = excluded.seq where hr_devseq.seq < excluded.seq returning 1)
+        update hr_users set data = ${d}::jsonb, rev = rev + 1, updated_at = now() where id = ${u.id} and exists (select 1 from s) returning rev`;
       if (!r.length) { const c = await db()`select rev from hr_users where id = ${u.id}`; return res.json({ ok: true, old: true, rev: Number(c[0].rev) }); }
       return res.json({ ok: true, rev: Number(r[0].rev) });
     }
