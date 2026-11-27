@@ -128,6 +128,7 @@ export async function entrar(usuario, pin) {
 // salir: primero sube lo último. Si no se puede (sin internet), NO borra nada y avisa.
 export async function salir() {
   if (user?.offline && !(await reconnect())) throw new Error('Sin internet: conéctate para salir sin perder tu progreso');
+  if (pending && !dirty()) pending = null;   // lo del otro compu ya está en la nube: no hace falta bajarlo para salir
   if (!(await push())) throw new Error(lastError || 'No se pudo guardar tu progreso. Revisa el internet y prueba otra vez.');
   await api({ accion: 'salir' });
   user = null; clearTimeout(timer);
