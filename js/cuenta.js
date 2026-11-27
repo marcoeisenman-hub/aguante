@@ -17,7 +17,7 @@ const META = ['hrSyncUser', 'hrSent', 'hrBase'];   // hrSeq nunca se borra: así
 // identificador de este compu (al azar, no dice nada de ti): para que el servidor ordene sus guardados
 const DEV = get('hrDev') || (() => { const d = Math.random().toString(36).slice(2) + Date.now().toString(36); put('hrDev', d); return d; })();
 
-let user = null, timer = null, busy = null, lastError = '';
+let user = null, timer = null, busy = null, lastError = '', pending = null;   // pending: progreso de otro compu esperando a que vuelvas al menú
 export const cuenta = { get user() { return user; }, get error() { return lastError; }, onRemote: null, canApply: () => true };   // canApply: ¿se puede cambiar el progreso ahora? (no a media carrera)   // onRemote: la nube cambió y hay que recargar
 
 function snapshot() {
@@ -55,6 +55,12 @@ function push() {
   if (busy) return busy.then(() => push());
   busy = (async () => {
     if (user?.offline && !(await reconnect())) { retry(); return false; }
+    if (pending) {
+      // si jugaste algo nuevo aquí mientras tanto, gana este compu (como al abrir); si no, se baja lo del otro compu en el menú
+      if (dirty()) pending = null;
+      else if (cuenta.canApply()) { const p = pending; pending = null; apply(p.data, p.rev); cuenta.onRemote?.(); return false; }
+      else { retry(); return false; }
+    }
     if (!user) return false;
     if (!dirty()) return true;
     const seq = num('hrSeq');
@@ -80,7 +86,7 @@ async function reconnect() {
     user = j.user;
     // sin cambios aquí y la nube cambió (otro compu): bajar lo de la nube y recargar
     if (!dirty() && user.rev !== num('hrBase')) {
-      if (!cuenta.canApply()) return false;               // a media carrera: lo hace cuando vuelvas al menú
+      if (!cuenta.canApply()) { pending = j.user; return false; }   // a media carrera: lo baja cuando vuelvas al menú
       apply(user.data, user.rev); cuenta.onRemote?.(); return false;
     }
     return true;
